@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Squircle base with royal blue to vibrant cobalt gradient matching medrayai.in -->
+    <path android:pathData="M24,4 L76,4 A20,20 0 0 1 96,24 L96,76 A20,20 0 0 1 76,96 L24,96 A20,20 0 0 1 4,76 L4,24 A20,20 0 0 1 24,4 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="4"
+                android:startY="4"
+                android:endX="96"
+                android:endY="96"
+                android:startColor="#3B82F6"
+                android:endColor="#1D4ED8" />
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle diagonal AI Ray flare across the top-right -->
+    <path
+        android:pathData="M96,24 L96,55 L55,96 L24,96 L96,24 Z"
+        android:fillColor="#60A5FA"
+        android:fillAlpha="0.22" />
+
+    <!-- Pure white rounded clinical cross (medrayai.in icon) -->
+    <path
+        android:pathData="M43,20 L57,20 A5,5 0 0 1 62,25 L62,38 L75,38 A5,5 0 0 1 80,43 L80,57 A5,5 0 0 1 75,62 L62,62 L62,75 A5,5 0 0 1 57,80 L43,80 A5,5 0 0 1 38,75 L38,62 L25,62 A5,5 0 0 1 20,57 L20,43 A5,5 0 0 1 25,38 L38,38 L38,25 A5,5 0 0 1 43,20 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Sleek inner optical ray line -->
+    <path
+        android:pathData="M38,58 L62,38"
+        android:strokeColor="#DBEAFE"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.6" />
+</vector>

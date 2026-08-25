@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.MedRay" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/medray_blue_dark</item>
+        <item name="android:windowBackground">@color/medray_background</item>
+    </style>
+</resources>
