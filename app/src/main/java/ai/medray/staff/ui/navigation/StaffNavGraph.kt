@@ -177,6 +177,122 @@ fun getSampleQueue(): List<QueueEntry> {
     )
 }
 
+
+fun getSampleAppointments(): List<Appointment> {
+    return listOf(
+        Appointment(
+            id = "appt-1",
+            clinicId = "clinic-1",
+            patientId = "pat-1",
+            doctorId = "doc-1",
+            scheduledAt = "2026-08-25T10:00:00Z",
+            chiefComplaint = "General Physician Consultation",
+            status = AppointmentStatus.SCHEDULED,
+            patient = Patient(
+                id = "pat-1",
+                clinicId = "clinic-1",
+                fullName = "Aarav Sharma",
+                uhid = "10008",
+                phone = "9876543210",
+                age = 34,
+                gender = "MALE"
+            ),
+            doctor = DoctorSummary("doc-1", "Rajesh Sharma", "General Physician")
+        ),
+        Appointment(
+            id = "appt-2",
+            clinicId = "clinic-1",
+            patientId = "pat-2",
+            doctorId = "doc-1",
+            scheduledAt = "2026-08-25T10:30:00Z",
+            chiefComplaint = "Fever and cold symptoms",
+            status = AppointmentStatus.CHECKED_IN,
+            patient = Patient(
+                id = "pat-2",
+                clinicId = "clinic-1",
+                fullName = "Pooja Verma",
+                uhid = "10007",
+                phone = "9812345678",
+                age = 42,
+                gender = "FEMALE"
+            ),
+            doctor = DoctorSummary("doc-1", "Rajesh Sharma", "General Physician")
+        ),
+        Appointment(
+            id = "appt-3",
+            clinicId = "clinic-1",
+            patientId = "pat-3",
+            doctorId = "doc-2",
+            scheduledAt = "2026-08-25T11:00:00Z",
+            chiefComplaint = "Cardiology follow up check",
+            status = AppointmentStatus.COMPLETED,
+            patient = Patient(
+                id = "pat-3",
+                clinicId = "clinic-1",
+                fullName = "Rohan Mehta",
+                uhid = "10006",
+                phone = "9765432109",
+                age = 58,
+                gender = "MALE"
+            ),
+            doctor = DoctorSummary("doc-2", "Ananya Roy", "Cardiologist")
+        )
+    )
+}
+
+fun getSampleInvoices(): List<Invoice> {
+    return listOf(
+        Invoice(
+            id = "inv-1",
+            clinicId = "clinic-1",
+            invoiceNumber = "20260825-001",
+            patientId = "pat-1",
+            status = InvoiceStatus.PAID,
+            total = 500.0,
+            issuedAt = "2026-08-25T09:30:00Z",
+            patient = Patient(
+                id = "pat-1",
+                clinicId = "clinic-1",
+                fullName = "Aarav Sharma",
+                uhid = "10008",
+                phone = "9876543210"
+            )
+        ),
+        Invoice(
+            id = "inv-2",
+            clinicId = "clinic-1",
+            invoiceNumber = "20260825-002",
+            patientId = "pat-2",
+            status = InvoiceStatus.ISSUED,
+            total = 500.0,
+            issuedAt = "2026-08-25T10:00:00Z",
+            patient = Patient(
+                id = "pat-2",
+                clinicId = "clinic-1",
+                fullName = "Pooja Verma",
+                uhid = "10007",
+                phone = "9812345678"
+            )
+        ),
+        Invoice(
+            id = "inv-3",
+            clinicId = "clinic-1",
+            invoiceNumber = "20260825-003",
+            patientId = "pat-3",
+            status = InvoiceStatus.PAID,
+            total = 800.0,
+            issuedAt = "2026-08-25T10:15:00Z",
+            patient = Patient(
+                id = "pat-3",
+                clinicId = "clinic-1",
+                fullName = "Rohan Mehta",
+                uhid = "10006",
+                phone = "9765432109"
+            )
+        )
+    )
+}
+
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Login : Screen("login")
@@ -249,8 +365,8 @@ fun StaffAppNavHost(
     // Data States
     var queueEntries by remember { mutableStateOf<List<QueueEntry>>(getSampleQueue()) }
     var patientsList by remember { mutableStateOf<List<Patient>>(emptyList()) }
-    var appointmentsList by remember { mutableStateOf<List<Appointment>>(emptyList()) }
-    var invoicesList by remember { mutableStateOf<List<Invoice>>(emptyList()) }
+    var appointmentsList by remember { mutableStateOf<List<Appointment>>(getSampleAppointments()) }
+    var invoicesList by remember { mutableStateOf<List<Invoice>>(getSampleInvoices()) }
     var selfCheckInsList by remember { mutableStateOf<List<SelfCheckIn>>(emptyList()) }
     var doctors by remember { mutableStateOf(listOf(DoctorSummary("doc-1", "Rajesh Sharma", "General Physician"), DoctorSummary("doc-2", "Ananya Roy", "Cardiologist"))) }
     var searchQuery by remember { mutableStateOf("") }

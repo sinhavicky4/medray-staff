@@ -1,3 +1,16 @@
+# MedRay Staff Version 0.1.6 Release Notes
+
+- **📅 Redesigned Appointments Schedule**: Doctor Tablet aesthetic parity with 2x2 interactive KPI stat cards (Scheduled, Checked In, Completed, Cancelled), time slot badges, assigned consulting doctors, quick status filter pills, and direct one-tap "Check In to Queue" workflow.
+- **💳 Redesigned Billing & Payments**: Real-time revenue overview (Total Collected & Pending Due KPI counters), invoice status badges, patient UHID links, and instant dynamic on-screen UPI QR payment collection.
+- **⚙️ Redesigned Staff Profile**: Elevated clinical profile card with staff initials squircle, verified role badges, full assigned clinic details with UPI VPA configuration, 256-bit encryption compliance assurance, and confirmed sign-out dialog.
+
+# MedRay Staff Version 0.1.5 Release Notes
+
+- **📋 Doctor App Parity OPD Queue Redesign**: 100% synchronized with the Doctor Tablet App featuring clinical slate backgrounds (`#F8FAFC`), pure white cards with `1.dp` border `#E2E8F0`, contextual header greetings, and 2x2 interactive KPI stat cards (`Arrived`, `Waiting`, `In Triage`, `Completed`).
+- **⏱️ Timestamp & Creator Attribution Badges**: Dedicated badges on every queue card indicating exact check-in timestamp and staff creator attribution (e.g. `⏱️ 4:20 PM · by Front Desk`).
+- **👥 Redesigned Patients Directory (`PatientsScreen.kt`)**: Modern patient records directory with interactive KPI counters (Total, Male, Female, Seniors 60+), live search, quick filter pills, initial avatars, UHID tags, verified phone contacts, and detailed patient clinical modals.
+- **🔄 Room Database Schema v2**: Seamless local database schema migration with automatic data integrity handling.
+
 # MedRay Staff Version 0.1.4 Release Notes
 
 - **🌐 Resilient Google Sign-In with Play Services Fallback**: Added Google Play Services `GoogleSignInClient` Intent launcher fallback to support full-screen Google Account selector and "Add another account" flow on all Android devices.
