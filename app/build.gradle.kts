@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
-val appVersionCode: Int = 4
+val appVersionCode: Int = 5
 
 android {
     namespace = "ai.medray.staff"
@@ -125,6 +125,7 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     // Room SQLite Database
     val roomVersion = "2.6.1"

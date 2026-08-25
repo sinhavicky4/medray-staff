@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.1.4 Release Notes
+
+- **🌐 Resilient Google Sign-In with Play Services Fallback**: Added Google Play Services `GoogleSignInClient` Intent launcher fallback to support full-screen Google Account selector and "Add another account" flow on all Android devices.
+- **🛠️ Enhanced Error Transparency**: Context-aware diagnostics for account registration and configuration.
+
 # MedRay Staff Version 0.1.3 Release Notes
 
 - **🌊 Animated Clinical Splash Screen**: Synchronized with Doctor Tablet App featuring breathing squircle logo, Plus Jakarta Sans branding, "NURSES & FRONT DESK MOBILE WORKSPACE" pill, flowing WavyBackground ribbons, and 256-bit encryption compliance assurance.

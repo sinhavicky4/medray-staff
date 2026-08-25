@@ -1,6 +1,8 @@
 package ai.medray.staff.ui.navigation
 
 import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -83,6 +85,30 @@ fun StaffAppNavHost(
     var isAuthLoading by remember { mutableStateOf(false) }
     var isPasswordLoading by remember { mutableStateOf(false) }
     var isGoogleLoading by remember { mutableStateOf(false) }
+
+    val googlePlayServicesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val tokenRes = googleProvider.parseSignInResult(result.data)
+        if (tokenRes.isSuccess) {
+            isGoogleLoading = true
+            authError = null
+            coroutineScope.launch {
+                val idToken = tokenRes.getOrNull()!!
+                val authRes = authRepo.signInWithGoogle(idToken)
+                isGoogleLoading = false
+                if (authRes.isSuccess) {
+                    currentUser = authRes.getOrNull()
+                    navController.navigate(Screen.Queue.route) { popUpTo(0) }
+                } else {
+                    authError = authRes.exceptionOrNull()?.message ?: "Google sign-in failed on server"
+                }
+            }
+        } else {
+            isGoogleLoading = false
+            authError = tokenRes.exceptionOrNull()?.message ?: "Google Sign-In cancelled"
+        }
+    }
 
     // Data States
     var queueEntries by remember { mutableStateOf<List<QueueEntry>>(emptyList()) }
@@ -303,7 +329,11 @@ fun StaffAppNavHost(
                                     }
                                 } else {
                                     isGoogleLoading = false
-                                    authError = tokenRes.exceptionOrNull()?.message ?: "Google Sign-In cancelled"
+                                    try {
+                                        googlePlayServicesLauncher.launch(googleProvider.getSignInIntent(activity))
+                                    } catch (e: Exception) {
+                                        authError = tokenRes.exceptionOrNull()?.message ?: e.message ?: "Google Sign-In cancelled"
+                                    }
                                 }
                             }
                         },
