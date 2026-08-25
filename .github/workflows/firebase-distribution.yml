@@ -73,7 +73,7 @@ jobs:
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID || '1:43389690359:android:54e8710c2046bb37b10ef2' }}
+          appId: ${{ secrets.FIREBASE_APP_ID || '1:43389690359:android:4a7a3246c5c132fcb10ef2' }}
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREDENTIALS }}
           groups: ${{ github.event.inputs.groups || 'pilot-doctors' }}
           releaseNotes: ${{ steps.notes.outputs.notes }}

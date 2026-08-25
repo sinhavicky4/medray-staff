@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "43389690359-8i3cm9c9m6kqee83hqej0rovborpul08.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.medray.app",
+            "certificate_hash": "950a8d6b53c977876b61ed40530c546298f34706"
+          }
+        },
+        {
           "client_id": "43389690359-b03293bu47obfvo86d3r1kmpjgav4ua3.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -44,57 +52,12 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:43389690359:android:54e8710c2046bb37b10ef2",
+        "mobilesdk_app_id": "1:43389690359:android:4a7a3246c5c132fcb10ef2",
         "android_client_info": {
           "package_name": "ai.medray.staff"
         }
       },
       "oauth_client": [
-        {
-          "client_id": "43389690359-b03293bu47obfvo86d3r1kmpjgav4ua3.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "ai.medray.app",
-            "certificate_hash": "58104bf436d03e02cbc0b60bf862f44c595573bd"
-          }
-        },
-        {
-          "client_id": "43389690359-08ujar849pe8shqlfu1a2scu4vb5r1ge.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyACVJsjWvPrULZ6oAXQEBUQLzXcTbA03dg"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "43389690359-08ujar849pe8shqlfu1a2scu4vb5r1ge.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:43389690359:android:54e8710c2046bb37b10ef2",
-        "android_client_info": {
-          "package_name": "ai.medray.staff.debug"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "43389690359-b03293bu47obfvo86d3r1kmpjgav4ua3.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "ai.medray.app",
-            "certificate_hash": "58104bf436d03e02cbc0b60bf862f44c595573bd"
-          }
-        },
         {
           "client_id": "43389690359-08ujar849pe8shqlfu1a2scu4vb5r1ge.apps.googleusercontent.com",
           "client_type": 3

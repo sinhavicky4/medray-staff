@@ -73,7 +73,7 @@ android {
                 signingConfigs.getByName("debug")
             }
             firebaseAppDistribution {
-                appId = "1:43389690359:android:54e8710c2046bb37b10ef2"
+                appId = "1:43389690359:android:4a7a3246c5c132fcb10ef2"
                 groups = "pilot-doctors"
                 releaseNotesFile = "${rootProject.projectDir}/RELEASE_NOTES.md"
             }
