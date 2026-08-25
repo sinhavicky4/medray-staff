@@ -25,6 +25,7 @@ import ai.medray.staff.data.model.*
 import ai.medray.staff.data.network.*
 import ai.medray.staff.data.repository.*
 import ai.medray.staff.ui.appointments.AppointmentsScreen
+import ai.medray.staff.ui.splash.SplashScreen
 import ai.medray.staff.ui.auth.LoginScreen
 import ai.medray.staff.ui.auth.OtpVerificationScreen
 import ai.medray.staff.ui.billing.BillingScreen
@@ -39,6 +40,7 @@ import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
     object Login : Screen("login")
     object Otp : Screen("otp")
     object Queue : Screen("queue")
@@ -97,16 +99,7 @@ fun StaffAppNavHost(
     var showWalkInDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
 
-    // Check initial auth on launch
-    LaunchedEffect(Unit) {
-        if (authRepo.isLoggedIn()) {
-            val res = authRepo.getMe()
-            if (res.isSuccess) {
-                currentUser = res.getOrNull()
-                navController.navigate(Screen.Queue.route) { popUpTo(0) }
-            }
-        }
-    }
+// Initial auth check handled seamlessly in SplashScreen
 
     // Refresh data coordinator
     fun refreshAllData() {
@@ -133,7 +126,7 @@ fun StaffAppNavHost(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
-    val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route
+    val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route
 
     val screenTitle = when (currentRoute) {
         Screen.Queue.route -> if (currentUser?.isNurse == true) "Triage Queue" else "OPD Queue"
@@ -228,9 +221,32 @@ fun StaffAppNavHost(
         ) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = Screen.Login.route,
+                startDestination = Screen.Splash.route,
                 modifier = modifier.padding(innerPadding)
             ) {
+                // 0. Splash Screen
+                composable(Screen.Splash.route) {
+                    SplashScreen(
+                        onFinished = {
+                            coroutineScope.launch {
+                                if (authRepo.isLoggedIn()) {
+                                    val res = authRepo.getMe()
+                                    if (res.isSuccess) {
+                                        currentUser = res.getOrNull()
+                                        navController.navigate(Screen.Queue.route) {
+                                            popUpTo(Screen.Splash.route) { inclusive = true }
+                                        }
+                                        return@launch
+                                    }
+                                }
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(Screen.Splash.route) { inclusive = true }
+                                }
+                            }
+                        }
+                    )
+                }
+
                 // 1. Login Screen
                 composable(Screen.Login.route) {
                     LoginScreen(

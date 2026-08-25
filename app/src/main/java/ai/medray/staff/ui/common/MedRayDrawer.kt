@@ -1,6 +1,8 @@
 package ai.medray.staff.ui.common
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -96,19 +98,19 @@ fun MedRayDrawerContent(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
-                Surface(
-                    color = MedRayBlueLight,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.size(44.dp)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(PureWhite, RoundedCornerShape(11.dp))
+                        .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(11.dp))
+                        .padding(5.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "MR",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MedRayBluePrimary
-                        )
-                    }
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = ai.medray.staff.R.drawable.ic_medray_logo),
+                        contentDescription = "MedRay AI Logo",
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))

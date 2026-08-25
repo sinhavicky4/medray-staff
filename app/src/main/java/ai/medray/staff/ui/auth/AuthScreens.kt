@@ -1,5 +1,9 @@
 package ai.medray.staff.ui.auth
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,17 +12,21 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -28,16 +36,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.BuildConfig
 import ai.medray.staff.R
+import ai.medray.staff.ui.common.WavyBackground
 import ai.medray.staff.ui.theme.*
 import org.json.JSONObject
 
-private fun extractErrorMessage(raw: String?): String {
+private val HeroGradientStart = Color(0xFFEFF6FF)
+private val HeroGradientMiddle = Color(0xFFEEF2FF)
+private val HeroGradientEnd = Color(0xFFDBEAFE)
+private val MedRayPrimaryBlue = Color(0xFF2563EB)
+private val MedRayTextDark = Color(0xFF0F172A)
+private val CardBorderColor = Color(0xFFE2E8F0)
+
+private fun formatErrorMessage(raw: String?): String {
     if (raw.isNullOrBlank()) return "An error occurred. Please try again."
-    return try {
+    val extracted = try {
         val obj = JSONObject(raw)
         obj.optString("error", obj.optString("message", raw))
     } catch (_: Exception) {
         raw
+    }
+
+    return when {
+        extracted.contains("No account registered with this Google email", ignoreCase = true) ||
+        extracted.contains("google account does not exist", ignoreCase = true) ||
+        extracted.contains("no_account", ignoreCase = true) ->
+            "No staff account found for this Google email. Please ensure your Clinic Admin has registered this Google email to your staff account, or use Mobile OTP."
+        extracted.contains("Invalid verification code", ignoreCase = true) ->
+            "Invalid OTP code. Please check and re-enter."
+        extracted.contains("Only Doctor accounts", ignoreCase = true) ->
+            "This account is not authorized for mobile staff triage. Please contact your Clinic Admin."
+        else -> extracted
     }
 }
 
@@ -58,294 +86,499 @@ fun LoginScreen(
     error: String?,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0: Mobile OTP, 1: Password
+    var selectedTab by remember { mutableStateOf(0) } // 0: Phone OTP, 1: Password
     var showPassword by remember { mutableStateOf(false) }
+    val isValidPhone = phone.length == 10
 
     Box(
-        contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxSize()
-            .background(Slate50)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 28.dp)
+            .background(Brush.verticalGradient(listOf(HeroGradientStart, HeroGradientMiddle, HeroGradientEnd)))
     ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = PureWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        WavyBackground(modifier = Modifier.fillMaxSize())
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(24.dp)
+            // Brand Bar
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 18.dp)
             ) {
-                // MedRay Brand Logo Icon
-                Surface(
-                    color = MedRayBlueLight,
-                    shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.size(60.dp)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .border(1.5.dp, Color(0xFFBFDBFE), RoundedCornerShape(12.dp))
+                        .padding(6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "MR",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MedRayBluePrimary
-                        )
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_medray_logo),
+                        contentDescription = "MedRay",
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(Modifier.width(10.dp))
 
-                Text(
-                    text = "MedRay Staff",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate900
-                )
-
-                Text(
-                    text = "Nurses & Receptionists Mobile Station",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Slate500,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(22.dp))
-
-                // Google Sign In Button
-                OutlinedButton(
-                    onClick = onGoogleSignIn,
-                    enabled = !isGoogleSigningIn && !isSendingOtp && !isPasswordLoggingIn,
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = PureWhite,
-                        contentColor = Slate800
-                    ),
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
-                ) {
-                    if (isGoogleSigningIn) {
-                        CircularProgressIndicator(
-                            color = MedRayBluePrimary,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_google_logo),
-                                contentDescription = "Google Logo",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Continue with Google",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate800
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Divider with OR
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
-                ) {
-                    HorizontalDivider(color = Slate200, modifier = Modifier.weight(1f))
+                Column {
                     Text(
-                        text = "OR",
-                        style = MaterialTheme.typography.labelSmall,
+                        "MedRay Staff",
+                        fontFamily = HeadingFontFamily,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Slate400,
-                        modifier = Modifier.padding(horizontal = 12.dp)
+                        color = MedRayTextDark
                     )
-                    HorizontalDivider(color = Slate200, modifier = Modifier.weight(1f))
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Segmented Tab Selector
-                Surface(
-                    color = Slate100,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
                     Row(
-                        modifier = Modifier.padding(4.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Surface(
-                            color = if (selectedTab == 0) PureWhite else Color.Transparent,
-                            shape = RoundedCornerShape(10.dp),
-                            shadowElevation = if (selectedTab == 0) 2.dp else 0.dp,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedTab = 0 }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "Mobile OTP",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selectedTab == 0) MedRayBluePrimary else Slate600,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Surface(
-                            color = if (selectedTab == 1) PureWhite else Color.Transparent,
-                            shape = RoundedCornerShape(10.dp),
-                            shadowElevation = if (selectedTab == 1) 2.dp else 0.dp,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedTab = 1 }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "Password",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selectedTab == 1) MedRayBluePrimary else Slate600,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                if (selectedTab == 0) {
-                    // Mobile OTP Mode
-                    OutlinedTextField(
-                        value = phone,
-                        onValueChange = onPhoneChange,
-                        label = { Text("Registered Mobile Number") },
-                        placeholder = { Text("9876543210") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = Slate400) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MedRayBluePrimary,
-                            unfocusedBorderColor = Slate200
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (!error.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = extractErrorMessage(error),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = StatusErrorText,
-                            modifier = Modifier.fillMaxWidth()
+                            "MOBILE WORKSPACE",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedRayPrimaryBlue
                         )
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = onSendOtp,
-                        enabled = phone.length >= 10 && !isSendingOtp,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
-                    ) {
-                        if (isSendingOtp) {
-                            CircularProgressIndicator(color = PureWhite, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Send Verification OTP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                } else {
-                    // Password Mode
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = onEmailChange,
-                        label = { Text("Email Address") },
-                        placeholder = { Text("staff@medray.ai") },
-                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Slate400) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MedRayBluePrimary,
-                            unfocusedBorderColor = Slate200
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+            // Main Card matching Doctor Tablet Login Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, CardBorderColor),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        "Welcome Back 👋",
+                        fontFamily = HeadingFontFamily,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MedRayTextDark
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Sign in to access your OPD triage queue & front desk.",
+                        fontFamily = InterFontFamily,
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
+                    )
 
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = onPasswordChange,
-                        label = { Text("Password") },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Slate400) },
-                        trailingIcon = {
-                            IconButton(onClick = { showPassword = !showPassword }) {
-                                Icon(
-                                    imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    tint = Slate400
+                    // Tab Selector
+                    Surface(
+                        color = Slate100,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(4.dp)) {
+                            Surface(
+                                color = if (selectedTab == 0) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(9.dp),
+                                shadowElevation = if (selectedTab == 0) 1.dp else 0.dp,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedTab = 0 }
+                                    .padding(vertical = 7.dp)
+                            ) {
+                                Text(
+                                    "Mobile OTP",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == 0) MedRayPrimaryBlue else Slate600,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
-                        },
-                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MedRayBluePrimary,
-                            unfocusedBorderColor = Slate200
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
 
-                    if (!error.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                color = if (selectedTab == 1) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(9.dp),
+                                shadowElevation = if (selectedTab == 1) 1.dp else 0.dp,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedTab = 1 }
+                                    .padding(vertical = 7.dp)
+                            ) {
+                                Text(
+                                    "Staff Password",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == 1) MedRayPrimaryBlue else Slate600,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+
+                    if (selectedTab == 0) {
+                        // Mobile OTP Input
                         Text(
-                            text = extractErrorMessage(error),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = StatusErrorText,
+                            "Registered Mobile Number",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedRayTextDark
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .background(Color.White, RoundedCornerShape(12.dp))
+                                .border(
+                                    1.5.dp,
+                                    if (isValidPhone) MedRayPrimaryBlue else Color(0xFFCBD5E1),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Country Code Pill
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("🇮🇳", fontSize = 14.sp)
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "+91",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MedRayPrimaryBlue
+                                )
+                            }
+
+                            Spacer(Modifier.width(10.dp))
+
+                            BasicTextField(
+                                value = phone,
+                                onValueChange = { if (it.length <= 10 && it.all(Char::isDigit)) onPhoneChange(it) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = TextStyle(
+                                    fontFamily = InterFontFamily,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MedRayTextDark,
+                                    letterSpacing = 1.sp
+                                ),
+                                decorationBox = { innerTextField ->
+                                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                                        if (phone.isEmpty()) {
+                                            Text(
+                                                "Enter 10-digit mobile number",
+                                                fontFamily = InterFontFamily,
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF94A3B8)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            AnimatedVisibility(visible = isValidPhone, enter = fadeIn(), exit = fadeOut()) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .background(Color(0xFFDCFCE7), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = "Valid",
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            "We'll send a 6-digit OTP to verify your identity.",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+
+                        if (!error.isNullOrBlank()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = formatErrorMessage(error),
+                                fontFamily = InterFontFamily,
+                                fontSize = 12.sp,
+                                color = Color(0xFFDC2626),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFFECACA), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+
+                        Button(
+                            onClick = onSendOtp,
+                            enabled = isValidPhone && !isSendingOtp,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MedRayPrimaryBlue,
+                                disabledContainerColor = Color(0xFF93C5FD)
+                            ),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            if (isSendingOtp) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Requesting OTP...",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    "Get OTP & Continue",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        // Password Mode
+                        Text(
+                            "Staff Email Address",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedRayTextDark
+                        )
+                        Spacer(Modifier.height(6.dp))
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = onEmailChange,
+                            placeholder = { Text("staff@medray.ai", fontFamily = InterFontFamily, fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Color(0xFF94A3B8)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MedRayPrimaryBlue,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            ),
                             modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Text(
+                            "Password",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedRayTextDark
+                        )
+                        Spacer(Modifier.height(6.dp))
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = onPasswordChange,
+                            placeholder = { Text("Enter your password", fontFamily = InterFontFamily, fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF94A3B8)) },
+                            trailingIcon = {
+                                IconButton(onClick = { showPassword = !showPassword }) {
+                                    Icon(
+                                        imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Color(0xFF94A3B8)
+                                    )
+                                }
+                            },
+                            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MedRayPrimaryBlue,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (!error.isNullOrBlank()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = formatErrorMessage(error),
+                                fontFamily = InterFontFamily,
+                                fontSize = 12.sp,
+                                color = Color(0xFFDC2626),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFFECACA), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+
+                        Button(
+                            onClick = onPasswordLogin,
+                            enabled = email.isNotBlank() && password.isNotBlank() && !isPasswordLoggingIn,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MedRayPrimaryBlue),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            if (isPasswordLoggingIn) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(
+                                    "Sign In with Password",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // OR CONTINUE WITH Divider
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalDivider(color = CardBorderColor, modifier = Modifier.weight(1f))
+                        Text(
+                            "OR CONTINUE WITH",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF94A3B8),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        HorizontalDivider(color = CardBorderColor, modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+
+                    // Google OAuth Button
+                    OutlinedButton(
+                        onClick = onGoogleSignIn,
+                        enabled = !isGoogleSigningIn && !isSendingOtp && !isPasswordLoggingIn,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        if (isGoogleSigningIn) {
+                            CircularProgressIndicator(
+                                color = MedRayPrimaryBlue,
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_google_logo),
+                                    contentDescription = "Google",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "Continue with Google Workspace",
+                                    fontFamily = HeadingFontFamily,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MedRayTextDark
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+
+                    // Security assurance
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Filled.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Authorized healthcare providers only",
+                            fontFamily = InterFontFamily,
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8),
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(Modifier.height(6.dp))
 
-                    Button(
-                        onClick = onPasswordLogin,
-                        enabled = email.isNotBlank() && password.isNotBlank() && !isPasswordLoggingIn,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
-                    ) {
-                        if (isPasswordLoggingIn) {
-                            CircularProgressIndicator(color = PureWhite, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Sign In with Password", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    Text(
+                        "${BuildConfig.VERSION_NAME_DISPLAY} · Secure Clinical Portal",
+                        fontFamily = InterFontFamily,
+                        fontSize = 10.sp,
+                        color = Color(0xFF94A3B8),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(22.dp))
-
-                Text(
-                    text = "${BuildConfig.VERSION_NAME_DISPLAY} · Secure Production Portal",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Slate400
-                )
             }
         }
     }
@@ -363,85 +596,127 @@ fun OtpVerificationScreen(
     modifier: Modifier = Modifier
 ) {
     Box(
-        contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxSize()
-            .background(Slate50)
-            .padding(24.dp)
+            .background(Brush.verticalGradient(listOf(HeroGradientStart, HeroGradientMiddle, HeroGradientEnd)))
     ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = PureWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        WavyBackground(modifier = Modifier.fillMaxSize())
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(28.dp)
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, CardBorderColor),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Verify Mobile OTP",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate900
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(Color(0xFFEFF6FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Security,
+                            contentDescription = null,
+                            tint = MedRayPrimaryBlue,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
 
-                Text(
-                    text = "6-digit authentication code sent to +91 $phone",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Slate500,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
+                    Spacer(Modifier.height(14.dp))
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                OutlinedTextField(
-                    value = otpCode,
-                    onValueChange = { if (it.length <= 6) onOtpChange(it) },
-                    label = { Text("6-Digit OTP") },
-                    placeholder = { Text("123456") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Slate400) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MedRayBluePrimary,
-                        unfocusedBorderColor = Slate200
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                if (!error.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = extractErrorMessage(error),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = StatusErrorText,
+                        "Verify Mobile OTP",
+                        fontFamily = HeadingFontFamily,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MedRayTextDark
+                    )
+
+                    Text(
+                        "6-digit security code sent to +91 $phone",
+                        fontFamily = InterFontFamily,
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    OutlinedTextField(
+                        value = otpCode,
+                        onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) onOtpChange(it) },
+                        label = { Text("6-Digit Code", fontFamily = InterFontFamily) },
+                        placeholder = { Text("123456", fontFamily = InterFontFamily) },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF94A3B8)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MedRayPrimaryBlue,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = onVerify,
-                    enabled = otpCode.length >= 4 && !isVerifying,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    if (isVerifying) {
-                        CircularProgressIndicator(color = PureWhite, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Verify & Continue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (!error.isNullOrBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = formatErrorMessage(error),
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFFFECACA), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(Modifier.height(20.dp))
 
-                TextButton(onClick = onResend) {
-                    Text("Resend Code", color = MedRayBluePrimary, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = onVerify,
+                        enabled = otpCode.length >= 4 && !isVerifying,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayPrimaryBlue),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                "Verify & Continue",
+                                fontFamily = HeadingFontFamily,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    TextButton(onClick = onResend) {
+                        Text(
+                            "Resend Code",
+                            fontFamily = HeadingFontFamily,
+                            color = MedRayPrimaryBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

@@ -1,3 +1,10 @@
+# MedRay Staff Version 0.1.3 Release Notes
+
+- **🌊 Animated Clinical Splash Screen**: Synchronized with Doctor Tablet App featuring breathing squircle logo, Plus Jakarta Sans branding, "NURSES & FRONT DESK MOBILE WORKSPACE" pill, flowing WavyBackground ribbons, and 256-bit encryption compliance assurance.
+- **📱 100% Doctor App Parity Login Screen**: Matching mobile phone portrait design with country code pill (`🇮🇳 +91`), live numeric phone validation indicator, vibrant action button with `ArrowForward` icon, `OR CONTINUE WITH` divider, and Google Workspace button with official logo.
+- **🎨 Shared Design Tokens & Typography**: Seamless integration of Google Fonts (`Plus Jakarta Sans` for titles and `Inter` for body copy), unified status pill badges, and slate surface elevations.
+- **🛡️ Clear Google Sign-In Guidance**: Contextual error explanations informing users if their Google account needs to be registered by their Clinic Admin.
+
 # MedRay Staff Version 0.1.2 Release Notes
 
 - **🌐 Google Sign-In Integration**: Seamless 1-tap "Continue with Google" sign-in via Android Credential Manager and `/api/auth/google/mobile`.

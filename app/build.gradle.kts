@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
-val appVersionCode: Int = 3
+val appVersionCode: Int = 4
 
 android {
     namespace = "ai.medray.staff"
@@ -116,6 +116,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.8")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Security, Biometrics & Google Sign-In
