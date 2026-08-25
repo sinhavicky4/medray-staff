@@ -54,7 +54,6 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("String", "API_BASE_URL", "\"https://p0p0mmh46m.execute-api.ap-south-1.amazonaws.com/api/\"")
             signingConfig = if (keystorePropertiesFile.exists()) {
