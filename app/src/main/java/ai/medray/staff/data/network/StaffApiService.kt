@@ -17,6 +17,12 @@ data class OtpVerifyBody(
     val client: String = "mobile"
 )
 
+data class GoogleSignInBody(
+    val idToken: String,
+    val deviceFingerprint: String = "staff-android-device",
+    val deviceName: String = "Android Smartphone"
+)
+
 data class PasswordLoginBody(
     val email: String,
     val password: String
@@ -117,6 +123,9 @@ interface StaffApiService {
 
     @POST("auth/otp/verify")
     suspend fun verifyOtp(@Body req: OtpVerifyBody): Response<User>
+
+    @POST("auth/google/mobile")
+    suspend fun signInWithGoogle(@Body req: GoogleSignInBody): Response<User>
 
     @POST("auth/login")
     suspend fun loginWithPassword(@Body req: PasswordLoginBody): Response<User>

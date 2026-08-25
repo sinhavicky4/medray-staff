@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
         val authRepo = AuthRepository(this)
         val queueRepo = QueueRepository(this)
         val patientRepo = PatientRepository(this)
+        val appointmentRepo = AppointmentRepository(this)
         val billingRepo = BillingRepository(this)
 
         setContent {
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
                         authRepo = authRepo,
                         queueRepo = queueRepo,
                         patientRepo = patientRepo,
+                        appointmentRepo = appointmentRepo,
                         billingRepo = billingRepo
                     )
                 }

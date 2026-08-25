@@ -1,20 +1,24 @@
 package ai.medray.staff.ui.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -23,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.BuildConfig
+import ai.medray.staff.R
 import ai.medray.staff.ui.theme.*
 import org.json.JSONObject
 
@@ -48,10 +53,12 @@ fun LoginScreen(
     onPasswordChange: (String) -> Unit,
     onPasswordLogin: () -> Unit,
     isPasswordLoggingIn: Boolean,
+    onGoogleSignIn: () -> Unit,
+    isGoogleSigningIn: Boolean,
     error: String?,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0: Phone OTP, 1: Password
+    var selectedTab by remember { mutableStateOf(0) } // 0: Mobile OTP, 1: Password
     var showPassword by remember { mutableStateOf(false) }
 
     Box(
@@ -59,7 +66,8 @@ fun LoginScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
-            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 28.dp)
     ) {
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -69,13 +77,13 @@ fun LoginScreen(
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(28.dp)
+                modifier = Modifier.padding(24.dp)
             ) {
-                // MedRay Logo & Brand
+                // MedRay Brand Logo Icon
                 Surface(
                     color = MedRayBlueLight,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.size(64.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.size(60.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
@@ -87,7 +95,7 @@ fun LoginScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "MedRay Staff",
@@ -97,37 +105,127 @@ fun LoginScreen(
                 )
 
                 Text(
-                    text = "Mobile OPD & Clinical Triage Portal",
+                    text = "Nurses & Receptionists Mobile Station",
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate500,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
-                // Tab Selector
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Slate100,
-                    contentColor = MedRayBluePrimary,
-                    modifier = Modifier.fillMaxWidth().background(Slate100, RoundedCornerShape(12.dp))
+                // Google Sign In Button
+                OutlinedButton(
+                    onClick = onGoogleSignIn,
+                    enabled = !isGoogleSigningIn && !isSendingOtp && !isPasswordLoggingIn,
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = PureWhite,
+                        contentColor = Slate800
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = { Text("Mobile OTP", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                    if (isGoogleSigningIn) {
+                        CircularProgressIndicator(
+                            color = MedRayBluePrimary,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_google_logo),
+                                contentDescription = "Google Logo",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Continue with Google",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate800
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Divider with OR
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                ) {
+                    HorizontalDivider(color = Slate200, modifier = Modifier.weight(1f))
+                    Text(
+                        text = "OR",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate400,
+                        modifier = Modifier.padding(horizontal = 12.dp)
                     )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = { Text("Password", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
-                    )
+                    HorizontalDivider(color = Slate200, modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Segmented Tab Selector
+                Surface(
+                    color = Slate100,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp)
+                    ) {
+                        Surface(
+                            color = if (selectedTab == 0) PureWhite else Color.Transparent,
+                            shape = RoundedCornerShape(10.dp),
+                            shadowElevation = if (selectedTab == 0) 2.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedTab = 0 }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Mobile OTP",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 0) MedRayBluePrimary else Slate600,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        Surface(
+                            color = if (selectedTab == 1) PureWhite else Color.Transparent,
+                            shape = RoundedCornerShape(10.dp),
+                            shadowElevation = if (selectedTab == 1) 2.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedTab = 1 }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Password",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 1) MedRayBluePrimary else Slate600,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 if (selectedTab == 0) {
-                    // OTP Mode
+                    // Mobile OTP Mode
                     OutlinedTextField(
                         value = phone,
                         onValueChange = onPhoneChange,
@@ -154,7 +252,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = onSendOtp,
@@ -166,7 +264,7 @@ fun LoginScreen(
                         if (isSendingOtp) {
                             CircularProgressIndicator(color = PureWhite, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("Send OTP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Send Verification OTP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 } else {
@@ -174,7 +272,7 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = email,
                         onValueChange = onEmailChange,
-                        label = { Text("Email / Username") },
+                        label = { Text("Email Address") },
                         placeholder = { Text("staff@medray.ai") },
                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Slate400) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -224,7 +322,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = onPasswordLogin,
@@ -236,15 +334,15 @@ fun LoginScreen(
                         if (isPasswordLoggingIn) {
                             CircularProgressIndicator(color = PureWhite, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("Sign In", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Sign In with Password", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 Text(
-                    text = "${BuildConfig.VERSION_NAME_DISPLAY} · Secure Production Staff Portal",
+                    text = "${BuildConfig.VERSION_NAME_DISPLAY} · Secure Production Portal",
                     style = MaterialTheme.typography.labelSmall,
                     color = Slate400
                 )
@@ -282,17 +380,18 @@ fun OtpVerificationScreen(
                 modifier = Modifier.padding(28.dp)
             ) {
                 Text(
-                    text = "Verify OTP",
+                    text = "Verify Mobile OTP",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = Slate900
                 )
 
                 Text(
-                    text = "Code sent to +91 $phone",
+                    text = "6-digit authentication code sent to +91 $phone",
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate500,
-                    modifier = Modifier.padding(top = 4.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -342,7 +441,7 @@ fun OtpVerificationScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 TextButton(onClick = onResend) {
-                    Text("Resend OTP", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Resend Code", color = MedRayBluePrimary, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -41,6 +41,7 @@ fun MedRayTopBar(
     subtitle: String? = null,
     user: User? = null,
     isOffline: Boolean = false,
+    onMenuClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     onClinicClick: () -> Unit = {}
 ) {
@@ -51,6 +52,11 @@ fun MedRayTopBar(
     ) {
         Column {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Menu", tint = Slate800)
+                    }
+                },
                 title = {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
-val appVersionCode: Int = 2
+val appVersionCode: Int = 3
 
 android {
     namespace = "ai.medray.staff"
@@ -37,6 +37,7 @@ android {
         }
 
         buildConfigField("String", "VERSION_NAME_DISPLAY", "\"v${appVersionName} (${appVersionCode})\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"43389690359-08ujar849pe8shqlfu1a2scu4vb5r1ge.apps.googleusercontent.com\"")
     }
 
     signingConfigs {
@@ -117,9 +118,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Security & Biometrics
+    // Security, Biometrics & Google Sign-In
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Room SQLite Database
     val roomVersion = "2.6.1"

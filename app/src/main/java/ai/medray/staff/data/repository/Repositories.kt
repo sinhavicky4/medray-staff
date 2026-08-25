@@ -79,6 +79,31 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    suspend fun signInWithGoogle(idToken: String): Result<User> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.signInWithGoogle(
+                GoogleSignInBody(
+                    idToken = idToken,
+                    deviceFingerprint = "staff-${android.os.Build.MODEL}-${android.os.Build.ID}",
+                    deviceName = android.os.Build.MODEL ?: "Staff Phone"
+                )
+            )
+            if (res.isSuccessful && res.body() != null) {
+                val user = res.body()!!
+                val activeClinic = user.activeClinic ?: user.clinic
+                if (activeClinic != null) {
+                    cookieJar.setActiveClinicId(activeClinic.id)
+                }
+                Result.success(user)
+            } else {
+                val err = res.errorBody()?.string() ?: "Google sign-in failed"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun loginWithPassword(email: String, pass: String): Result<User> = withContext(Dispatchers.IO) {
         try {
             val res = api.loginWithPassword(PasswordLoginBody(email = email.trim(), password = pass))
