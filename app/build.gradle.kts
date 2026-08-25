@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
-val appVersionCode: Int = 5
+val appVersionCode: Int = 6
 
 android {
     namespace = "ai.medray.staff"

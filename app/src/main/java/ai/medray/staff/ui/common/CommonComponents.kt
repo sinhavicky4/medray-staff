@@ -223,50 +223,70 @@ fun MedRayBottomNav(
 }
 
 @Composable
-fun VitalsSummaryBadge(vitals: Vitals) {
+fun VitalsSummaryBadge(vitals: Vitals, modifier: Modifier = Modifier) {
     if (!vitals.hasAnyReading()) {
         Surface(
             color = Slate100,
-            shape = RoundedCornerShape(6.dp)
+            shape = RoundedCornerShape(6.dp),
+            modifier = modifier
         ) {
-            Text(
-                text = "Vitals not recorded",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            ) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = Slate400,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Vitals Pending",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate500,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
         return
     }
 
     val eval = VitalsValidator.evaluate(vitals)
-    val (bg, border, text) = when (eval.overallSeverity) {
-        VitalsSeverity.CRITICAL -> Triple(VitalsAbnormalBg, StatusErrorBorder, VitalsAbnormalText)
-        VitalsSeverity.WARNING -> Triple(StatusWarningBg, StatusWarningBorder, StatusWarningText)
-        VitalsSeverity.NORMAL -> Triple(VitalsNormalBg, StatusSuccessBorder, VitalsNormalText)
+    val (bg, border, text, dotColor) = when (eval.overallSeverity) {
+        VitalsSeverity.CRITICAL -> listOf(Color(0xFFFEF2F2), Color(0xFFFCA5A5), Color(0xFFDC2626), Color(0xFFEF4444))
+        VitalsSeverity.WARNING -> listOf(Color(0xFFFFFBEB), Color(0xFFFDE68A), Color(0xFFD97706), Color(0xFFF59E0B))
+        VitalsSeverity.NORMAL -> listOf(Color(0xFFF0FDF4), Color(0xFFBBF7D0), Color(0xFF16A34A), Color(0xFF22C55E))
     }
 
     val parts = mutableListOf<String>()
-    if (!vitals.vitalsBp.isNullOrBlank()) parts.add("BP ${vitals.vitalsBp}")
-    if (vitals.vitalsSpo2 != null) parts.add("SpO2 ${vitals.vitalsSpo2}%")
-    if (vitals.vitalsPulseBpm != null) parts.add("Pulse ${vitals.vitalsPulseBpm}")
+    if (!vitals.vitalsBp.isNullOrBlank()) parts.add("BP: ${vitals.vitalsBp}")
+    if (vitals.vitalsPulseBpm != null) parts.add("Pulse: ${vitals.vitalsPulseBpm} bpm")
+    if (vitals.vitalsSpo2 != null) parts.add("SpO2: ${vitals.vitalsSpo2}%")
     if (vitals.vitalsTemperatureF != null) parts.add("${vitals.vitalsTemperatureF}°F")
-    if (vitals.vitalsWeightKg != null) parts.add("${vitals.vitalsWeightKg}kg")
-    if (vitals.bmi != null) parts.add("BMI ${vitals.bmi}")
+    if (vitals.vitalsWeightKg != null) parts.add("${vitals.vitalsWeightKg} kg")
+    if (vitals.bmi != null) parts.add("BMI: ${vitals.bmi}")
 
     Surface(
         color = bg,
-        shape = RoundedCornerShape(6.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, border)
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, border),
+        modifier = modifier
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(dotColor, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = parts.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
+                text = parts.joinToString("  ·  "),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = text
             )
         }
@@ -275,27 +295,148 @@ fun VitalsSummaryBadge(vitals: Vitals) {
 
 @Composable
 fun QueueStatusBadge(status: QueueStatus) {
-    val (bg, text) = when (status) {
-        QueueStatus.WAITING -> Pair(StatusWarningBg, StatusWarningText)
-        QueueStatus.ARRIVED -> Pair(StatusSuccessBg, StatusSuccessText)
-        QueueStatus.IN_PROGRESS -> Pair(MedRayBlueContainer, MedRayBlueDark)
-        QueueStatus.COMPLETED -> Pair(Slate100, Slate700)
-        QueueStatus.CANCELLED -> Pair(StatusErrorBg, StatusErrorText)
-        QueueStatus.NO_SHOW -> Pair(StatusErrorBg, StatusErrorText)
+    val (bg, text, dotColor) = when (status) {
+        QueueStatus.WAITING -> Triple(Color(0xFFFEF3C7), Color(0xFFD97706), Color(0xFFF59E0B))
+        QueueStatus.ARRIVED -> Triple(Color(0xFFDCFCE7), Color(0xFF16A34A), Color(0xFF22C55E))
+        QueueStatus.IN_PROGRESS -> Triple(Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFF3B82F6))
+        QueueStatus.COMPLETED -> Triple(Color(0xFFF1F5F9), Color(0xFF64748B), Color(0xFF94A3B8))
+        QueueStatus.CANCELLED -> Triple(Color(0xFFFEF2F2), Color(0xFFDC2626), Color(0xFFEF4444))
+        QueueStatus.NO_SHOW -> Triple(Color(0xFFFEF2F2), Color(0xFFDC2626), Color(0xFFEF4444))
     }
 
     Surface(
         color = bg,
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, text.copy(alpha = 0.2f))
     ) {
-        Text(
-            text = status.name.replace("_", " "),
-            style = MaterialTheme.typography.labelSmall,
-            color = text,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-        )
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(dotColor, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = when (status) {
+                    QueueStatus.IN_PROGRESS -> "In Triage"
+                    QueueStatus.WAITING -> "Waiting"
+                    QueueStatus.ARRIVED -> "Arrived"
+                    QueueStatus.COMPLETED -> "Completed"
+                    QueueStatus.CANCELLED -> "Cancelled"
+                    QueueStatus.NO_SHOW -> "No Show"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = text
+            )
+        }
     }
 }
+
+@Composable
+fun StatCard(
+    title: String,
+    value: String,
+    footer: String,
+    icon: ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = PureWhite,
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            if (isSelected) 1.5.dp else 1.dp,
+            if (isSelected) MedRayBluePrimary else Slate200
+        ),
+        shadowElevation = if (isSelected) 2.dp else 0.5.dp,
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Slate500
+                )
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(iconBg, RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(14.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Slate900
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = footer,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isSelected) MedRayBluePrimary else Slate400,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+fun QuickFilterPill(
+    label: String,
+    isSelected: Boolean,
+    dotColor: Color? = null,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = if (isSelected) MedRayBlueLight else PureWhite,
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSelected) Color(0xFF93C5FD) else Slate200
+        ),
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            if (dotColor != null) {
+                Box(modifier = Modifier.size(6.dp).background(dotColor, CircleShape))
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) MedRayBluePrimary else Slate700
+            )
+        }
+    }
+}
+
 
 @Composable
 fun DynamicUpiQrDialog(

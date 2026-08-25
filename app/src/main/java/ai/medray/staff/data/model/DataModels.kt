@@ -145,6 +145,8 @@ data class QueueEntry(
     val status: QueueStatus = QueueStatus.WAITING,
     val cancelReason: String? = null,
     val scheduledAt: String,
+    val createdAt: String? = null,
+    val createdBy: String? = null,
     val vitalsBp: String? = null,
     val vitalsTemperatureF: Double? = null,
     val vitalsPulseBpm: Int? = null,
@@ -165,6 +167,33 @@ data class QueueEntry(
             vitalsWeightKg = vitalsWeightKg,
             vitalsHeightCm = vitalsHeightCm
         )
+
+    val formattedTime: String
+        get() {
+            val raw = createdAt ?: scheduledAt
+            return try {
+                if (raw.contains("T")) {
+                    val timePart = raw.substringAfter("T").substringBefore("Z").substringBefore("+").substringBefore(".")
+                    val parts = timePart.split(":")
+                    if (parts.size >= 2) {
+                        val hour = parts[0].toInt()
+                        val min = parts[1]
+                        val ampm = if (hour >= 12) "PM" else "AM"
+                        val h12 = if (hour % 12 == 0) 12 else hour % 12
+                        "$h12:$min $ampm"
+                    } else raw
+                } else if (raw.contains(":")) {
+                    raw
+                } else {
+                    raw
+                }
+            } catch (_: Exception) {
+                raw
+            }
+        }
+
+    val addedByDisplay: String
+        get() = createdBy?.ifBlank { "Front Desk" } ?: "Front Desk"
 }
 
 data class Appointment(

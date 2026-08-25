@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         QueueEntryEntity::class,
         OutboxCommandEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class StaffDatabase : RoomDatabase() {

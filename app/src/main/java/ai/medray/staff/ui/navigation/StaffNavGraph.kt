@@ -7,9 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import ai.medray.staff.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.outlined.ListAlt
@@ -40,6 +42,140 @@ import ai.medray.staff.ui.reception.ReceptionHomeScreen
 import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
 import kotlinx.coroutines.launch
+
+
+fun getSampleQueue(): List<QueueEntry> {
+    return listOf(
+        QueueEntry(
+            id = "mock-1",
+            clinicId = "clinic-1",
+            patientId = "pat-1",
+            doctorId = "doc-1",
+            opdNumber = "Token #1 · OPD-2026-001",
+            chiefComplaint = "High fever (102°F) and acute throat pain for 3 days",
+            status = QueueStatus.ARRIVED,
+            scheduledAt = "2026-08-25T10:00:00Z",
+            createdAt = "2026-08-25T09:45:00Z",
+            createdBy = "Front Desk",
+            vitalsBp = "120/80",
+            vitalsPulseBpm = 78,
+            vitalsSpo2 = 98,
+            vitalsTemperatureF = 101.8,
+            vitalsWeightKg = 68.0,
+            vitalsHeightCm = 172.0,
+            patient = Patient(
+                id = "pat-1",
+                clinicId = "clinic-1",
+                fullName = "Aarav Sharma",
+                uhid = "MR-2026-0182",
+                phone = "9876543210",
+                age = 34,
+                gender = "MALE"
+            ),
+            doctor = DoctorSummary(
+                id = "doc-1",
+                fullName = "Rajesh Sharma",
+                specialization = "General Physician"
+            )
+        ),
+        QueueEntry(
+            id = "mock-2",
+            clinicId = "clinic-1",
+            patientId = "pat-2",
+            doctorId = "doc-1",
+            opdNumber = "Token #2 · OPD-2026-002",
+            chiefComplaint = "Severe headache, dizziness, and elevated blood pressure",
+            status = QueueStatus.WAITING,
+            scheduledAt = "2026-08-25T10:15:00Z",
+            createdAt = "2026-08-25T10:05:00Z",
+            createdBy = "Kiosk Check-In",
+            vitalsBp = "150/95",
+            vitalsPulseBpm = 86,
+            vitalsSpo2 = 97,
+            vitalsTemperatureF = 98.4,
+            vitalsWeightKg = 74.5,
+            vitalsHeightCm = 168.0,
+            patient = Patient(
+                id = "pat-2",
+                clinicId = "clinic-1",
+                fullName = "Pooja Verma",
+                uhid = "MR-2026-0195",
+                phone = "9812345678",
+                age = 42,
+                gender = "FEMALE"
+            ),
+            doctor = DoctorSummary(
+                id = "doc-1",
+                fullName = "Rajesh Sharma",
+                specialization = "General Physician"
+            )
+        ),
+        QueueEntry(
+            id = "mock-3",
+            clinicId = "clinic-1",
+            patientId = "pat-3",
+            doctorId = "doc-2",
+            opdNumber = "Token #3 · OPD-2026-003",
+            chiefComplaint = "Routine hypertension follow-up & prescription renewal",
+            status = QueueStatus.IN_PROGRESS,
+            scheduledAt = "2026-08-25T10:30:00Z",
+            createdAt = "2026-08-25T10:20:00Z",
+            createdBy = "Sister Anita (Nurse)",
+            vitalsBp = null,
+            vitalsPulseBpm = null,
+            vitalsSpo2 = null,
+            vitalsTemperatureF = null,
+            vitalsWeightKg = null,
+            vitalsHeightCm = null,
+            patient = Patient(
+                id = "pat-3",
+                clinicId = "clinic-1",
+                fullName = "Rohan Mehta",
+                uhid = "MR-2026-0204",
+                phone = "9765432109",
+                age = 58,
+                gender = "MALE"
+            ),
+            doctor = DoctorSummary(
+                id = "doc-2",
+                fullName = "Ananya Roy",
+                specialization = "Cardiologist"
+            )
+        ),
+        QueueEntry(
+            id = "mock-4",
+            clinicId = "clinic-1",
+            patientId = "pat-4",
+            doctorId = "doc-2",
+            opdNumber = "Token #4 · OPD-2026-004",
+            chiefComplaint = "Chest congestion, seasonal allergies, dry cough",
+            status = QueueStatus.COMPLETED,
+            scheduledAt = "2026-08-25T09:30:00Z",
+            createdAt = "2026-08-25T09:15:00Z",
+            createdBy = "Front Desk",
+            vitalsBp = "118/76",
+            vitalsPulseBpm = 72,
+            vitalsSpo2 = 99,
+            vitalsTemperatureF = 98.6,
+            vitalsWeightKg = 62.0,
+            vitalsHeightCm = 165.0,
+            patient = Patient(
+                id = "pat-4",
+                clinicId = "clinic-1",
+                fullName = "Deepak Patel",
+                uhid = "MR-2026-0158",
+                phone = "9988776655",
+                age = 29,
+                gender = "MALE"
+            ),
+            doctor = DoctorSummary(
+                id = "doc-2",
+                fullName = "Ananya Roy",
+                specialization = "Cardiologist"
+            )
+        )
+    )
+}
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
@@ -111,12 +247,12 @@ fun StaffAppNavHost(
     }
 
     // Data States
-    var queueEntries by remember { mutableStateOf<List<QueueEntry>>(emptyList()) }
+    var queueEntries by remember { mutableStateOf<List<QueueEntry>>(getSampleQueue()) }
     var patientsList by remember { mutableStateOf<List<Patient>>(emptyList()) }
     var appointmentsList by remember { mutableStateOf<List<Appointment>>(emptyList()) }
     var invoicesList by remember { mutableStateOf<List<Invoice>>(emptyList()) }
     var selfCheckInsList by remember { mutableStateOf<List<SelfCheckIn>>(emptyList()) }
-    var doctors by remember { mutableStateOf<List<DoctorSummary>>(emptyList()) }
+    var doctors by remember { mutableStateOf(listOf(DoctorSummary("doc-1", "Rajesh Sharma", "General Physician"), DoctorSummary("doc-2", "Ananya Roy", "Cardiologist"))) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedDoctorId by remember { mutableStateOf<String?>(null) }
 
@@ -248,7 +384,10 @@ fun StaffAppNavHost(
             NavHost(
                 navController = navController,
                 startDestination = Screen.Splash.route,
-                modifier = modifier.padding(innerPadding)
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(Slate50)
+                    .padding(innerPadding)
             ) {
                 // 0. Splash Screen
                 composable(Screen.Splash.route) {
