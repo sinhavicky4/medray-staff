@@ -51,8 +51,11 @@ fun StaffAppNavHost(
     var currentUser by remember { mutableStateOf<User?>(null) }
     var phoneInput by remember { mutableStateOf("") }
     var otpInput by remember { mutableStateOf("") }
+    var emailInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
     var authError by remember { mutableStateOf<String?>(null) }
     var isAuthLoading by remember { mutableStateOf(false) }
+    var isPasswordLoading by remember { mutableStateOf(false) }
 
     // Queue State
     var queueEntries by remember { mutableStateOf<List<QueueEntry>>(emptyList()) }
@@ -173,6 +176,30 @@ fun StaffAppNavHost(
                         }
                     },
                     isSendingOtp = isAuthLoading,
+                    email = emailInput,
+                    onEmailChange = { emailInput = it },
+                    password = passwordInput,
+                    onPasswordChange = { passwordInput = it },
+                    onPasswordLogin = {
+                        isPasswordLoading = true
+                        authError = null
+                        coroutineScope.launch {
+                            val res = authRepo.loginWithPassword(emailInput, passwordInput)
+                            isPasswordLoading = false
+                            if (res.isSuccess) {
+                                val u = res.getOrNull()
+                                currentUser = u
+                                if (u?.isNurse == true) {
+                                    navController.navigate(Screen.NurseHome.route) { popUpTo(0) }
+                                } else {
+                                    navController.navigate(Screen.ReceptionHome.route) { popUpTo(0) }
+                                }
+                            } else {
+                                authError = res.exceptionOrNull()?.message ?: "Login failed"
+                            }
+                        }
+                    },
+                    isPasswordLoggingIn = isPasswordLoading,
                     error = authError
                 )
             }

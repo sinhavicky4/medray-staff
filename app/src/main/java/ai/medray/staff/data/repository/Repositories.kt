@@ -23,23 +23,28 @@ import java.util.UUID
 
 class AuthRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
-    private val interceptor = ApiClient.getAuthInterceptor(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+    private var lastRequestId: String? = null
 
-    fun isLoggedIn(): Boolean = !interceptor.getToken().isNullOrBlank()
+    fun isLoggedIn(): Boolean = cookieJar.hasSession()
 
-    fun getActiveClinicId(): String? = interceptor.getActiveClinicId()
+    fun getActiveClinicId(): String? = cookieJar.getActiveClinicId()
 
     fun setActiveClinicId(clinicId: String) {
-        interceptor.saveActiveClinicId(clinicId)
+        cookieJar.setActiveClinicId(clinicId)
     }
 
     suspend fun sendOtp(phone: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val res = api.sendOtp(SendOtpRequest(phone = phone))
+            val cleanPhone = phone.trim().replace("[^0-9+]".toRegex(), "")
+            val res = api.requestOtp(OtpRequestBody(phone = cleanPhone))
             if (res.isSuccessful && res.body() != null) {
-                Result.success(res.body()!!.message)
+                val body = res.body()!!
+                lastRequestId = body.requestId
+                Result.success(body.requestId)
             } else {
-                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to send OTP"))
+                val err = res.errorBody()?.string() ?: "Failed to send OTP"
+                Result.failure(Exception(err))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -47,18 +52,46 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun verifyOtp(phone: String, code: String): Result<User> = withContext(Dispatchers.IO) {
+        val reqId = lastRequestId ?: return@withContext Result.failure(Exception("Please request OTP first"))
         try {
-            val res = api.verifyOtp(VerifyOtpRequest(phone = phone, code = code))
+            val res = api.verifyOtp(
+                OtpVerifyBody(
+                    requestId = reqId,
+                    code = code.trim(),
+                    deviceFingerprint = "staff-${android.os.Build.MODEL}-${android.os.Build.ID}",
+                    deviceName = android.os.Build.MODEL ?: "Staff Phone",
+                    client = "mobile"
+                )
+            )
             if (res.isSuccessful && res.body() != null) {
-                val body = res.body()!!
-                interceptor.saveToken(body.token)
-                val activeClinic = body.user.activeClinic ?: body.user.clinic
+                val user = res.body()!!
+                val activeClinic = user.activeClinic ?: user.clinic
                 if (activeClinic != null) {
-                    interceptor.saveActiveClinicId(activeClinic.id)
+                    cookieJar.setActiveClinicId(activeClinic.id)
                 }
-                Result.success(body.user)
+                Result.success(user)
             } else {
-                Result.failure(Exception(res.errorBody()?.string() ?: "Invalid OTP"))
+                val err = res.errorBody()?.string() ?: "Invalid OTP"
+                Result.failure(Exception(err))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun loginWithPassword(email: String, pass: String): Result<User> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.loginWithPassword(PasswordLoginBody(email = email.trim(), password = pass))
+            if (res.isSuccessful && res.body() != null) {
+                val user = res.body()!!
+                val activeClinic = user.activeClinic ?: user.clinic
+                if (activeClinic != null) {
+                    cookieJar.setActiveClinicId(activeClinic.id)
+                }
+                Result.success(user)
+            } else {
+                val err = res.errorBody()?.string() ?: "Invalid credentials"
+                Result.failure(Exception(err))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -72,11 +105,11 @@ class AuthRepository(private val context: Context) {
                 val user = res.body()!!
                 val activeClinic = user.activeClinic ?: user.clinic
                 if (activeClinic != null) {
-                    interceptor.saveActiveClinicId(activeClinic.id)
+                    cookieJar.setActiveClinicId(activeClinic.id)
                 }
                 Result.success(user)
             } else {
-                Result.failure(Exception("Failed to get user profile"))
+                Result.failure(Exception("Session expired"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -84,7 +117,7 @@ class AuthRepository(private val context: Context) {
     }
 
     fun logout() {
-        interceptor.clearToken()
+        cookieJar.clear()
     }
 }
 
@@ -92,7 +125,7 @@ class QueueRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
     private val db = StaffDatabase.getDatabase(context)
     private val outbox = OutboxManager(context)
-    private val interceptor = ApiClient.getAuthInterceptor(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
 
     fun getLocalQueue(clinicId: String): Flow<List<QueueEntry>> {
         return db.queueDao().getQueue(clinicId).map { entities ->
@@ -101,7 +134,7 @@ class QueueRepository(private val context: Context) {
     }
 
     suspend fun refreshQueue(date: String? = null): Result<List<QueueEntry>> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.getQueue(date = date, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -124,7 +157,7 @@ class QueueRepository(private val context: Context) {
         visitType: String = "FIRST_VISIT",
         vitals: Vitals? = null
     ): Result<QueueEntry> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId() ?: return@withContext Result.failure(Exception("No active clinic"))
+        val clinicId = cookieJar.getActiveClinicId() ?: return@withContext Result.failure(Exception("No active clinic"))
         val clientGenId = UUID.randomUUID().toString()
 
         val req = RegisterQueueRequest(
@@ -149,7 +182,6 @@ class QueueRepository(private val context: Context) {
                 db.queueDao().insertQueueEntry(QueueEntryEntity.fromDomain(created))
                 Result.success(created)
             } else {
-                // Offline fallback enqueue
                 outbox.enqueue(
                     commandType = "REGISTER_QUEUE",
                     payload = RegisterQueueCommandPayload(clinicId = clinicId, request = req),
@@ -171,7 +203,7 @@ class QueueRepository(private val context: Context) {
         queueEntryId: String,
         vitals: Vitals
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         val req = UpdateVitalsRequest(
             vitalsBp = vitals.vitalsBp,
             vitalsTemperatureF = vitals.vitalsTemperatureF,
@@ -182,7 +214,6 @@ class QueueRepository(private val context: Context) {
             vitalsHeightCm = vitals.vitalsHeightCm
         )
 
-        // Optimistic local update
         val existing = db.queueDao().getQueueEntryById(queueEntryId)
         if (existing != null) {
             val updated = existing.copy(
@@ -223,10 +254,9 @@ class QueueRepository(private val context: Context) {
         status: QueueStatus,
         cancelReason: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         val req = UpdateQueueStatusRequest(status = status, cancelReason = cancelReason)
 
-        // Optimistic local update
         val existing = db.queueDao().getQueueEntryById(queueEntryId)
         if (existing != null) {
             db.queueDao().insertQueueEntry(existing.copy(status = status.name, cancelReason = cancelReason))
@@ -257,10 +287,10 @@ class QueueRepository(private val context: Context) {
 class PatientRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
     private val db = StaffDatabase.getDatabase(context)
-    private val interceptor = ApiClient.getAuthInterceptor(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
 
     suspend fun searchPatients(query: String): Result<List<Patient>> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.searchPatients(query = query, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -278,7 +308,7 @@ class PatientRepository(private val context: Context) {
     }
 
     suspend fun registerPatient(req: RegisterPatientRequest): Result<Patient> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.registerPatient(req = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -313,10 +343,10 @@ class PatientRepository(private val context: Context) {
 
 class AppointmentRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
-    private val interceptor = ApiClient.getAuthInterceptor(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
 
     suspend fun listAppointments(date: String? = null, doctorId: String? = null): Result<List<Appointment>> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.listAppointments(date = date, doctorId = doctorId, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -330,7 +360,7 @@ class AppointmentRepository(private val context: Context) {
     }
 
     suspend fun createAppointment(req: BookAppointmentRequest): Result<Appointment> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.createAppointment(req = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -344,7 +374,7 @@ class AppointmentRepository(private val context: Context) {
     }
 
     suspend fun checkIn(appointmentId: String, vitals: Vitals?): Result<Appointment> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         val req = UpdateVitalsRequest(
             vitalsBp = vitals?.vitalsBp,
             vitalsTemperatureF = vitals?.vitalsTemperatureF,
@@ -367,7 +397,7 @@ class AppointmentRepository(private val context: Context) {
     }
 
     suspend fun cancel(appointmentId: String, reason: String): Result<Appointment> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.cancelAppointment(id = appointmentId, req = CancelAppointmentRequest(reason), clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -383,10 +413,10 @@ class AppointmentRepository(private val context: Context) {
 
 class BillingRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
-    private val interceptor = ApiClient.getAuthInterceptor(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
 
     suspend fun listInvoices(patientId: String? = null): Result<List<Invoice>> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val res = api.listInvoices(patientId = patientId, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
@@ -404,7 +434,7 @@ class BillingRepository(private val context: Context) {
         discountAmount: Double,
         lineItems: List<CreateInvoiceLineItemInput>
     ): Result<Invoice> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val req = CreateInvoiceRequest(
                 patientId = patientId,
@@ -428,7 +458,7 @@ class BillingRepository(private val context: Context) {
         paymentMethod: PaymentMethod,
         transactionRef: String? = null
     ): Result<Invoice> = withContext(Dispatchers.IO) {
-        val clinicId = interceptor.getActiveClinicId()
+        val clinicId = cookieJar.getActiveClinicId()
         try {
             val req = RecordPaymentRequest(
                 amount = amount,

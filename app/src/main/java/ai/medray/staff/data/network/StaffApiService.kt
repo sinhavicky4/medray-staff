@@ -6,11 +6,21 @@ import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
 
-data class SendOtpRequest(val phone: String)
-data class SendOtpResponse(val message: String, val requestId: String? = null)
+data class OtpRequestBody(val phone: String)
+data class OtpRequestResponseDto(val requestId: String, val expiresInSeconds: Int)
 
-data class VerifyOtpRequest(val phone: String, val code: String)
-data class AuthResponse(val token: String, val user: User)
+data class OtpVerifyBody(
+    val requestId: String,
+    val code: String,
+    val deviceFingerprint: String = "staff-android-device",
+    val deviceName: String = "Android Smartphone",
+    val client: String = "mobile"
+)
+
+data class PasswordLoginBody(
+    val email: String,
+    val password: String
+)
 
 data class RegisterQueueRequest(
     val id: String? = null,
@@ -102,14 +112,20 @@ data class RecordPaymentRequest(
 interface StaffApiService {
 
     // Auth
-    @POST("auth/otp/send")
-    suspend fun sendOtp(@Body req: SendOtpRequest): Response<SendOtpResponse>
+    @POST("auth/otp/request")
+    suspend fun requestOtp(@Body req: OtpRequestBody): Response<OtpRequestResponseDto>
 
     @POST("auth/otp/verify")
-    suspend fun verifyOtp(@Body req: VerifyOtpRequest): Response<AuthResponse>
+    suspend fun verifyOtp(@Body req: OtpVerifyBody): Response<User>
+
+    @POST("auth/login")
+    suspend fun loginWithPassword(@Body req: PasswordLoginBody): Response<User>
 
     @GET("auth/me")
     suspend fun getMe(): Response<User>
+
+    @POST("auth/logout")
+    suspend fun logout(): Response<Unit>
 
     // Clinics & Doctors
     @GET("clinics")

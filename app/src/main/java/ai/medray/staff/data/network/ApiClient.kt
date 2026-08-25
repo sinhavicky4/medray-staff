@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     private var apiService: StaffApiService? = null
-    private var authInterceptor: AuthInterceptor? = null
+    private var cookieJar: SessionCookieJar? = null
 
-    fun getAuthInterceptor(context: Context): AuthInterceptor {
-        return authInterceptor ?: synchronized(this) {
-            authInterceptor ?: AuthInterceptor(context.applicationContext).also { authInterceptor = it }
+    fun getCookieJar(context: Context): SessionCookieJar {
+        return cookieJar ?: synchronized(this) {
+            cookieJar ?: SessionCookieJar(context.applicationContext).also { cookieJar = it }
         }
     }
 
@@ -27,14 +27,16 @@ object ApiClient {
     }
 
     private fun buildService(context: Context): StaffApiService {
-        val interceptor = getAuthInterceptor(context)
+        val jar = getCookieJar(context)
+        val csrf = CsrfInterceptor(jar)
 
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
         }
 
         val okHttpClient = OkHttpClient.Builder()
-            .addInterceptor(interceptor)
+            .cookieJar(jar)
+            .addInterceptor(csrf)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
