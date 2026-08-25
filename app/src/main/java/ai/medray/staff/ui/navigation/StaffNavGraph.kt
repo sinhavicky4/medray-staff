@@ -320,6 +320,8 @@ fun StaffAppNavHost(
     patientRepo: PatientRepository,
     appointmentRepo: AppointmentRepository,
     billingRepo: BillingRepository,
+    doctorRepo: DoctorRepository,
+    selfCheckInRepo: SelfCheckInRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -393,6 +395,12 @@ fun StaffAppNavHost(
 
             val bRes = billingRepo.listInvoices()
             if (bRes.isSuccess) invoicesList = bRes.getOrDefault(emptyList())
+
+            val dRes = doctorRepo.listDoctors()
+            if (dRes.isSuccess) doctors = dRes.getOrDefault(doctors)
+
+            val sRes = selfCheckInRepo.listPending()
+            if (sRes.isSuccess) selfCheckInsList = sRes.getOrDefault(emptyList())
         }
     }
 
@@ -640,6 +648,7 @@ fun StaffAppNavHost(
                                 Toast.makeText(context, "Document Scanner opened for ${entry.patient?.fullName}", Toast.LENGTH_SHORT).show()
                             },
                             onStatusChange = { entry, newStatus ->
+                                queueEntries = queueEntries.map { if (it.id == entry.id) it.copy(status = newStatus) else it }
                                 coroutineScope.launch {
                                     queueRepo.updateStatus(entry.id, newStatus)
                                     refreshAllData()
@@ -653,7 +662,9 @@ fun StaffAppNavHost(
                             selectedDoctorId = selectedDoctorId,
                             onDoctorFilterChange = { selectedDoctorId = it },
                             onNewWalkInClick = { showWalkInDialog = true },
+                            onRecordVitalsClick = { entry -> vitalsTargetEntry = entry },
                             onStatusChange = { entry, newStatus ->
+                                queueEntries = queueEntries.map { if (it.id == entry.id) it.copy(status = newStatus) else it }
                                 coroutineScope.launch {
                                     queueRepo.updateStatus(entry.id, newStatus)
                                     refreshAllData()
@@ -671,7 +682,11 @@ fun StaffAppNavHost(
                             onWhatsAppClick = { entry ->
                                 val phone = entry.patient?.phone ?: ""
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$phone?text=Hello%20${entry.patient?.fullName},%20your%20OPD%20token%20is%20${entry.opdNumber}"))
-                                context.startActivity(intent)
+                                try {
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         )
                     }
@@ -771,6 +786,20 @@ fun StaffAppNavHost(
             patientName = entry.patient?.fullName ?: "Patient",
             onDismiss = { vitalsTargetEntry = null },
             onSave = { updatedVitals ->
+                // Immediate UI update in local state
+                queueEntries = queueEntries.map { q ->
+                    if (q.id == entry.id) {
+                        q.copy(
+                            vitalsBp = updatedVitals.vitalsBp,
+                            vitalsTemperatureF = updatedVitals.vitalsTemperatureF,
+                            vitalsPulseBpm = updatedVitals.vitalsPulseBpm,
+                            vitalsRespRate = updatedVitals.vitalsRespRate,
+                            vitalsSpo2 = updatedVitals.vitalsSpo2,
+                            vitalsWeightKg = updatedVitals.vitalsWeightKg,
+                            vitalsHeightCm = updatedVitals.vitalsHeightCm
+                        )
+                    } else q
+                }
                 coroutineScope.launch {
                     queueRepo.updateVitals(entry.id, updatedVitals)
                     vitalsTargetEntry = null

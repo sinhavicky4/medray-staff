@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -44,6 +45,7 @@ fun ReceptionHomeScreen(
     selectedDoctorId: String?,
     onDoctorFilterChange: (String?) -> Unit,
     onNewWalkInClick: () -> Unit,
+    onRecordVitalsClick: (QueueEntry) -> Unit,
     onStatusChange: (QueueEntry, QueueStatus) -> Unit,
     onCollectPaymentClick: (QueueEntry) -> Unit,
     onWhatsAppClick: (QueueEntry) -> Unit,
@@ -80,7 +82,22 @@ fun ReceptionHomeScreen(
                         entry.doctor?.fullName?.lowercase()?.contains(q) == true
             }
             matchesDoctor && matchesStatus && matchesSearch
-        }
+        }.sortedWith(
+            compareBy<QueueEntry> { entry ->
+                // Priority 1: Completed / Cancelled records move down to the bottom
+                when (entry.status) {
+                    QueueStatus.COMPLETED -> 2
+                    QueueStatus.CANCELLED -> 3
+                    else -> 1 // Active queue items at the top
+                }
+            }.thenBy { entry ->
+                // Priority 2: FIFO (First In, First Out) by check-in / creation timestamp
+                entry.createdAt ?: entry.scheduledAt
+            }.thenBy { entry ->
+                // Priority 3: Fallback token number
+                entry.opdNumber
+            }
+        )
     }
 
     LazyColumn(
@@ -366,6 +383,7 @@ fun ReceptionHomeScreen(
             items(filteredQueue, key = { it.id }) { entry ->
                 ReceptionPatientCard(
                     entry = entry,
+                    onRecordVitalsClick = { onRecordVitalsClick(entry) },
                     onStatusChange = { onStatusChange(entry, it) },
                     onCollectPaymentClick = { onCollectPaymentClick(entry) },
                     onWhatsAppClick = { onWhatsAppClick(entry) }
@@ -378,6 +396,7 @@ fun ReceptionHomeScreen(
 @Composable
 fun ReceptionPatientCard(
     entry: QueueEntry,
+    onRecordVitalsClick: () -> Unit,
     onStatusChange: (QueueStatus) -> Unit,
     onCollectPaymentClick: () -> Unit,
     onWhatsAppClick: () -> Unit
@@ -549,6 +568,10 @@ fun ReceptionPatientCard(
                 }
             }
 
+            // Vitals Banner Strip
+            Spacer(modifier = Modifier.height(10.dp))
+            VitalsSummaryBadge(vitals = entry.vitals, modifier = Modifier.fillMaxWidth())
+
             // Action Buttons Bar
             Spacer(modifier = Modifier.height(12.dp))
             Row(
@@ -556,16 +579,32 @@ fun ReceptionPatientCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                OutlinedButton(
+                    onClick = onRecordVitalsClick,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MedRayBluePrimary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = MedRayBluePrimary)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (entry.vitals.hasAnyReading()) "Vitals" else "+ Vitals",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
                 Button(
                     onClick = onCollectPaymentClick,
                     colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Collect ₹ Fee", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Collect Fee", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -573,12 +612,9 @@ fun ReceptionPatientCard(
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF15803D)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(0.9f)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF16A34A))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("WhatsApp", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF16A34A))
                 }
 
                 if (entry.status == QueueStatus.WAITING) {
@@ -586,7 +622,7 @@ fun ReceptionPatientCard(
                         onClick = { onStatusChange(QueueStatus.ARRIVED) },
                         modifier = Modifier
                             .background(Color(0xFFDCFCE7), RoundedCornerShape(10.dp))
-                            .size(38.dp)
+                            .size(36.dp)
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = "Mark Arrived", tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }

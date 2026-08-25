@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.1.7 Release Notes
+
+- **🔢 FIFO Queue Ordering & Completed Deprioritization**: OPD queue records are now strictly sorted by First-In, First-Out (FIFO) arrival order with completed and cancelled records automatically pushed to the bottom.
+- **🔄 Optimized Local SQLite Queue DAO**: Updated Room DAO queries with SQL CASE priority ordering for instant offline-first rendering.
+
 # MedRay Staff Version 0.1.6 Release Notes
 
 - **📅 Redesigned Appointments Schedule**: Doctor Tablet aesthetic parity with 2x2 interactive KPI stat cards (Scheduled, Checked In, Completed, Cancelled), time slot badges, assigned consulting doctors, quick status filter pills, and direct one-tap "Check In to Queue" workflow.

@@ -76,6 +76,7 @@ data class User(
     val fullName: String,
     val phone: String? = null,
     val roles: List<UserRole> = emptyList(),
+    val role: String? = null,
     val clinicId: String? = null,
     val clinic: Clinic? = null,
     val activeClinic: Clinic? = null,
@@ -83,9 +84,23 @@ data class User(
     val qualification: String? = null,
     val registrationNumber: String? = null
 ) : Serializable {
-    val isNurse: Boolean get() = roles.contains(UserRole.NURSE)
-    val isReceptionist: Boolean get() = roles.contains(UserRole.RECEPTIONIST) || roles.contains(UserRole.CLINIC_ADMIN)
-    val isClinicAdmin: Boolean get() = roles.contains(UserRole.CLINIC_ADMIN) || roles.contains(UserRole.SUPER_ADMIN)
+    val isNurse: Boolean 
+        get() = roles.contains(UserRole.NURSE) || 
+                role?.equals("NURSE", ignoreCase = true) == true || 
+                specialization?.contains("nurse", ignoreCase = true) == true
+                
+    val isReceptionist: Boolean 
+        get() = roles.contains(UserRole.RECEPTIONIST) || 
+                roles.contains(UserRole.CLINIC_ADMIN) || 
+                role?.contains("reception", ignoreCase = true) == true || 
+                role?.contains("staff", ignoreCase = true) == true || 
+                role?.contains("front", ignoreCase = true) == true || 
+                !isNurse
+                
+    val isClinicAdmin: Boolean 
+        get() = roles.contains(UserRole.CLINIC_ADMIN) || 
+                roles.contains(UserRole.SUPER_ADMIN) || 
+                role?.contains("admin", ignoreCase = true) == true
 }
 
 data class DoctorSummary(

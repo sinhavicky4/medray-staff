@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -80,7 +85,22 @@ fun NurseHomeScreen(
                         entry.doctor?.fullName?.lowercase()?.contains(q) == true
             }
             matchesFilter && matchesSearch
-        }
+        }.sortedWith(
+            compareBy<QueueEntry> { entry ->
+                // Priority 1: Completed / Cancelled records move down to the bottom
+                when (entry.status) {
+                    QueueStatus.COMPLETED -> 2
+                    QueueStatus.CANCELLED -> 3
+                    else -> 1 // Active triage/queue items at the top
+                }
+            }.thenBy { entry ->
+                // Priority 2: FIFO (First In, First Out) by check-in / creation timestamp
+                entry.createdAt ?: entry.scheduledAt
+            }.thenBy { entry ->
+                // Priority 3: Fallback token number
+                entry.opdNumber
+            }
+        )
     }
 
     LazyColumn(
@@ -569,6 +589,7 @@ fun FastVitalsEntryDialog(
     onDismiss: () -> Unit,
     onSave: (Vitals) -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     var bpSystolic by remember { mutableStateOf(initialVitals.vitalsBp?.split("/")?.getOrNull(0) ?: "") }
     var bpDiastolic by remember { mutableStateOf(initialVitals.vitalsBp?.split("/")?.getOrNull(1) ?: "") }
     var pulse by remember { mutableStateOf(initialVitals.vitalsPulseBpm?.toString() ?: "") }
@@ -591,16 +612,23 @@ fun FastVitalsEntryDialog(
 
     val validation = remember(currentVitals) { VitalsValidator.evaluate(currentVitals) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = PureWhite,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp)
+                .fillMaxWidth(0.92f)
+                .padding(vertical = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 // Modal Header
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -748,8 +776,8 @@ fun FastVitalsEntryDialog(
 
                     Button(
                         onClick = {
+                            keyboardController?.hide()
                             onSave(currentVitals)
-                            onDismiss()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),

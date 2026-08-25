@@ -541,3 +541,56 @@ class DocumentRepository(private val context: Context) {
         }
     }
 }
+
+class DoctorRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+
+    suspend fun listDoctors(): Result<List<DoctorSummary>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listDoctors(clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to load doctors"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
+class SelfCheckInRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+
+    suspend fun listPending(): Result<List<SelfCheckIn>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listSelfCheckIns(status = "PENDING", clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to fetch self check-ins"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun assign(id: String, doctorId: String): Result<QueueEntry> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val req = AssignSelfCheckInRequest(doctorId = doctorId)
+            val res = api.assignSelfCheckIn(id = id, req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to assign kiosk check-in"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}

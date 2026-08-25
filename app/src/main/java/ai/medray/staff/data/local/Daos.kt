@@ -23,7 +23,17 @@ interface PatientDao {
 
 @Dao
 interface QueueDao {
-    @Query("SELECT * FROM queue_entries WHERE clinicId = :clinicId ORDER BY scheduledAt ASC")
+    @Query("""
+        SELECT * FROM queue_entries 
+        WHERE clinicId = :clinicId 
+        ORDER BY 
+            CASE 
+                WHEN status IN ('COMPLETED', 'CANCELLED', 'NO_SHOW') THEN 2 
+                ELSE 1 
+            END ASC,
+            COALESCE(createdAt, scheduledAt) ASC,
+            opdNumber ASC
+    """)
     fun getQueue(clinicId: String): Flow<List<QueueEntryEntity>>
 
     @Query("SELECT * FROM queue_entries WHERE id = :id LIMIT 1")
