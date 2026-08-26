@@ -32,4 +32,18 @@ class DataModelsTest {
         assertEquals("", formatIsoTimeLocal(null))
         assertEquals("", formatIsoTimeLocal(""))
     }
+
+    // Regression coverage for Billing showing "INV-null": invoiceNumber/
+    // issuedAt used to be raw deserialized fields the server never actually
+    // sends (real fields are just id and createdAt), so Gson silently left
+    // them null at runtime despite their non-null Kotlin type.
+    @Test
+    fun `Invoice invoiceNumber is derived from id, matching the web app's own convention`() {
+        val invoice = Invoice(
+            id = "f2270b72-f653-4585-b76e-e8727d09e95b",
+            clinicId = "clinic-1",
+            patientId = "patient-1"
+        )
+        assertEquals("F2270B72", invoice.invoiceNumber)
+    }
 }

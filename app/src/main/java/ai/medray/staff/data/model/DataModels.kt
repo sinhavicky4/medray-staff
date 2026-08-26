@@ -261,19 +261,31 @@ data class Invoice(
     val clinicId: String,
     val patientId: String,
     val visitId: String? = null,
-    val invoiceNumber: String,
     val status: InvoiceStatus = InvoiceStatus.ISSUED,
     val discountAmount: Double = 0.0,
     val subtotal: Double = 0.0,
     val total: Double = 0.0,
     val netPaid: Double = 0.0,
     val balanceDue: Double = 0.0,
-    val issuedAt: String,
+    val createdAt: String? = null,
     val lineItems: List<InvoiceLineItem> = emptyList(),
     val payments: List<Payment> = emptyList(),
     val patient: Patient? = null,
     val clinic: Clinic? = null
-) : Serializable
+) : Serializable {
+    // No real "invoice number" exists server-side — an Invoice is
+    // identified by id (a UUID), same as the web app. invoiceNumber/
+    // issuedAt used to be raw deserialized fields the server never
+    // actually sends (real field is createdAt, not issuedAt), so Gson
+    // silently left them null at runtime despite their non-null Kotlin
+    // type — rendering as the literal text "INV-null" wherever displayed,
+    // and a guaranteed NullPointerException the moment anything called a
+    // String method on invoiceNumber (BillingScreen's search filter did).
+    // Derived the same way InvoiceDetailClient.tsx displays it on web:
+    // id.slice(0, 8).toUpperCase().
+    val invoiceNumber: String
+        get() = id.take(8).uppercase()
+}
 
 data class PatientDocument(
     val id: String,

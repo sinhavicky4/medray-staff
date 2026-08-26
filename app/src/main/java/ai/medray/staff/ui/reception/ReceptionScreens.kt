@@ -621,6 +621,30 @@ fun ReceptionPatientCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("View Rx", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
+                } else if (entry.advancePaidTotal > 0) {
+                    // Already collected pre-visit (Collect Fee recorded a real
+                    // AdvancePayment) — showing the same "Collect Fee" button
+                    // again with no visible change after a successful payment
+                    // was exactly why this looked like it "did nothing".
+                    Surface(
+                        color = Color(0xFFECFDF5),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = StatusSuccessText, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "₹${entry.advancePaidTotal.toInt()} Collected",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = StatusSuccessText
+                            )
+                        }
+                    }
                 } else {
                     Button(
                         onClick = onCollectPaymentClick,

@@ -455,6 +455,7 @@ fun DynamicUpiQrDialog(
     payeeName: String,
     amount: Double,
     invoiceNumber: String,
+    busy: Boolean = false,
     onDismiss: () -> Unit,
     onMarkPaid: () -> Unit
 ) {
@@ -537,16 +538,24 @@ fun DynamicUpiQrDialog(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(
-                        onClick = {
-                            onMarkPaid()
-                            onDismiss()
-                        },
+                        // Only calls onMarkPaid — that's an async operation
+                        // (launches a coroutine and returns immediately), so
+                        // this used to also call onDismiss() right here,
+                        // closing the dialog before the actual payment call
+                        // even completed. The caller now closes it itself
+                        // once the server has actually confirmed success or
+                        // failure, so "Mark Paid" doesn't silently look like
+                        // it did nothing.
+                        onClick = onMarkPaid,
+                        enabled = !busy,
                         colors = ButtonDefaults.buttonColors(containerColor = StatusSuccessText),
                         modifier = Modifier.weight(1.2f)
                     ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Mark Paid")
+                        if (!busy) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(if (busy) "Saving…" else "Mark Paid")
                     }
                 }
             }
