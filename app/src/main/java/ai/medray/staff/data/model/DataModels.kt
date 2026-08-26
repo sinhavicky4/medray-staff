@@ -238,7 +238,13 @@ data class QueueEntry(
     // Sum of AdvancePayment rows collected before a doctor opened this
     // patient's chart, not yet folded into a real Invoice — see
     // completeVisitAndInvoice (api/src/routes/visits.ts).
-    val advancePaidTotal: Double = 0.0
+    val advancePaidTotal: Double = 0.0,
+    // True when the "you've been added to the queue" WhatsApp alert failed
+    // to send (e.g. queue_token_alert not approved/synced on the WhatsApp
+    // BSP dashboard) — the queue entry itself was still created successfully,
+    // this only reflects the side-effect notification. See createQueueEntry
+    // (api/src/routes/queue.ts).
+    val tokenAlertFailed: Boolean = false
 ) : Serializable {
     val vitals: Vitals
         get() = Vitals(
