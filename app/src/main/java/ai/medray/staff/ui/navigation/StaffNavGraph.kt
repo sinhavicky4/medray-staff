@@ -313,6 +313,7 @@ data class UpiPaymentModalData(
     val payeeName: String,
     val amount: Double,
     val invoiceNumber: String,
+    val invoiceId: String? = null,
     val queueEntryId: String? = null,
     val patientId: String? = null,
     val doctorId: String? = null,
@@ -725,7 +726,11 @@ fun StaffAppNavHost(
                                     upiModalData = UpiPaymentModalData(
                                         payeeVpa = configuredUpiId,
                                         payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
-                                        amount = currentUser?.clinic?.defaultConsultationFee ?: 500.0,
+                                        // Same per-doctor fee (same DEFAULT_CONSULTATION_FEE=600
+                                        // fallback) the auto-generated invoice will later charge
+                                        // at visit completion — Clinic.defaultConsultationFee
+                                        // doesn't exist server-side at all.
+                                        amount = entry.doctor?.consultationFee?.takeIf { it > 0 } ?: 600.0,
                                         invoiceNumber = entry.opdNumber,
                                         queueEntryId = entry.id,
                                         patientId = entry.patientId,
@@ -814,8 +819,11 @@ fun StaffAppNavHost(
                                 upiModalData = UpiPaymentModalData(
                                     payeeVpa = configuredUpiId,
                                     payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
-                                    amount = invoice.total,
-                                    invoiceNumber = invoice.invoiceNumber
+                                    // Not invoice.total — a partially-paid invoice must only
+                                    // collect what's still owed, not re-charge the full amount.
+                                    amount = invoice.balanceDue,
+                                    invoiceNumber = invoice.invoiceNumber,
+                                    invoiceId = invoice.id
                                 )
                             }
                         }
@@ -974,37 +982,47 @@ fun StaffAppNavHost(
             onMarkPaid = {
                 coroutineScope.launch {
                     val invoiceAmount = data.amount
-                    // 1. Create formal invoice in billing ledger if patientId exists
-                    if (data.patientId != null) {
-                        val createRes = billingRepo.createInvoice(
-                            patientId = data.patientId,
-                            discountAmount = 0.0,
-                            lineItems = listOf(
-                                CreateInvoiceLineItemInput(
-                                    description = "OPD Consultation Fee (Dr. ${data.doctorName ?: "Doctor"})",
-                                    quantity = 1,
-                                    unitPrice = invoiceAmount,
-                                    amount = invoiceAmount
-                                )
-                            )
+                    // Existing invoice (Billing screen's Collect Payment) — record the
+                    // payment against it directly and only report success if the server
+                    // actually confirms it, instead of always showing the success toast.
+                    if (data.invoiceId != null) {
+                        val paymentRes = billingRepo.recordPayment(
+                            invoiceId = data.invoiceId,
+                            amount = invoiceAmount,
+                            paymentMethod = PaymentMethod.UPI,
+                            transactionRef = "UPI-${data.invoiceNumber}"
                         )
-                        if (createRes.isSuccess) {
-                            val inv = createRes.getOrNull()!!
-                            billingRepo.recordPayment(
-                                invoiceId = inv.id,
-                                amount = invoiceAmount,
-                                paymentMethod = PaymentMethod.UPI,
-                                transactionRef = "UPI-OPD-${data.invoiceNumber}"
-                            )
+                        upiModalData = null
+                        if (paymentRes.isSuccess) {
+                            refreshAllData()
+                            Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    // Pre-visit fee collection (Queue screen's Collect Payment) — no
+                    // Invoice exists yet at this point; this is folded into a real
+                    // Payment automatically once the visit later completes (see
+                    // completeVisitAndInvoice, api/src/routes/visits.ts). Previously
+                    // this tried to create+pay an invoice with just a patientId,
+                    // which never had a matching backend route and always failed
+                    // silently behind an unconditional success toast.
+                    if (data.queueEntryId != null) {
+                        val paymentRes = queueRepo.collectAdvancePayment(
+                            queueEntryId = data.queueEntryId,
+                            amount = invoiceAmount,
+                            method = PaymentMethod.UPI,
+                            note = "UPI-OPD-${data.invoiceNumber}"
+                        )
+                        upiModalData = null
+                        if (paymentRes.isSuccess) {
+                            refreshAllData()
+                            Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Payment collected but failed to save — please record it manually or retry.", Toast.LENGTH_LONG).show()
                         }
                     }
-                    // 2. Advance Queue Status to WAITING
-                    if (data.queueEntryId != null) {
-                        queueRepo.updateStatus(data.queueEntryId, QueueStatus.WAITING)
-                    }
-                    upiModalData = null
-                    refreshAllData()
-                    Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
                 }
             }
         )

@@ -314,6 +314,32 @@ class QueueRepository(private val context: Context) {
             Result.success(Unit)
         }
     }
+
+    // Pre-visit fee collection — money changed hands, so unlike
+    // updateStatus/updateVitals above this must NOT optimistically report
+    // success and queue for later retry on failure. A real confirmed/failed
+    // Result, matching BillingRepository's own online-only payment calls.
+    suspend fun collectAdvancePayment(
+        queueEntryId: String,
+        amount: Double,
+        method: PaymentMethod,
+        note: String? = null
+    ): Result<QueueEntry> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val req = CollectAdvancePaymentRequest(amount = amount, method = method, note = note)
+            val res = api.collectAdvancePayment(id = queueEntryId, req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                val entry = res.body()!!
+                db.queueDao().insertQueueEntry(QueueEntryEntity.fromDomain(entry))
+                Result.success(entry)
+            } else {
+                Result.failure(Exception("Failed to record payment"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 class PatientRepository(private val context: Context) {
@@ -503,8 +529,8 @@ class BillingRepository(private val context: Context) {
         try {
             val req = RecordPaymentRequest(
                 amount = amount,
-                paymentMethod = paymentMethod,
-                transactionRef = transactionRef
+                method = paymentMethod,
+                note = transactionRef
             )
             val res = api.recordPayment(id = invoiceId, req = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
