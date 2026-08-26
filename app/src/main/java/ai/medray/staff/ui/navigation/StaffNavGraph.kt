@@ -40,6 +40,7 @@ import ai.medray.staff.ui.nurse.FastVitalsEntryDialog
 import ai.medray.staff.ui.nurse.NurseHomeScreen
 import ai.medray.staff.ui.patients.PatientsScreen
 import ai.medray.staff.ui.profile.ProfileScreen
+import ai.medray.staff.ui.reception.AddToQueueForPatientDialog
 import ai.medray.staff.ui.reception.ReceptionHomeScreen
 import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
@@ -385,6 +386,8 @@ fun StaffAppNavHost(
     var rxTargetEntry by remember { mutableStateOf<QueueEntry?>(null) }
     var currentVisitForRx by remember { mutableStateOf<Visit?>(null) }
     var showWalkInDialog by remember { mutableStateOf(false) }
+    var selectedPatientForDirectQueue by remember { mutableStateOf<Patient?>(null) }
+    var showAddToQueueDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
 
 // Initial auth check handled seamlessly in SplashScreen
@@ -711,7 +714,7 @@ fun StaffAppNavHost(
                             },
                             onCollectPaymentClick = { entry ->
                                 upiModalData = UpiPaymentModalData(
-                                    payeeVpa = currentUser?.clinic?.upiVpa ?: "medray@upi",
+                                    payeeVpa = currentUser?.clinic?.effectiveUpiId ?: "medray@upi",
                                     payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
                                     amount = currentUser?.clinic?.defaultConsultationFee ?: 500.0,
                                     invoiceNumber = entry.opdNumber,
@@ -751,7 +754,11 @@ fun StaffAppNavHost(
                         onPatientClick = { patient ->
                             Toast.makeText(context, "Patient: ${patient.fullName} (UHID: ${patient.uhid})", Toast.LENGTH_SHORT).show()
                         },
-                        onRegisterPatientClick = { showWalkInDialog = true }
+                        onRegisterPatientClick = { showWalkInDialog = true },
+                        onAddToQueueClick = { patient ->
+                            selectedPatientForDirectQueue = patient
+                            showAddToQueueDialog = true
+                        }
                     )
                 }
 
@@ -790,7 +797,7 @@ fun StaffAppNavHost(
                         onRefresh = { refreshAllData() },
                         onCollectPaymentClick = { invoice ->
                             upiModalData = UpiPaymentModalData(
-                                payeeVpa = currentUser?.clinic?.upiVpa ?: "medray@upi",
+                                payeeVpa = currentUser?.clinic?.effectiveUpiId ?: "medray@upi",
                                 payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
                                 amount = invoice.total,
                                 invoiceNumber = invoice.invoiceNumber
@@ -860,6 +867,7 @@ fun StaffAppNavHost(
     if (showWalkInDialog) {
         WalkInRegisterDialog(
             doctors = doctors,
+            existingPatients = patientsList,
             onDismiss = { showWalkInDialog = false },
             onRegister = { patientName, phone, doctorId, complaint, age, gender ->
                 coroutineScope.launch {
@@ -888,6 +896,52 @@ fun StaffAppNavHost(
                         Toast.makeText(context, "Walk-In Registered! Token issued.", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "Failed to register: ${pRes.exceptionOrNull()?.message ?: "Unknown error"}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onAddExisting = { patient, doctorId, complaint ->
+                coroutineScope.launch {
+                    val res = queueRepo.registerQueueEntry(
+                        patientId = patient.id,
+                        doctorId = doctorId,
+                        chiefComplaint = complaint
+                    )
+                    showWalkInDialog = false
+                    if (res.isSuccess) {
+                        refreshAllData()
+                        Toast.makeText(context, "${patient.fullName} added to Dr.'s queue!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showAddToQueueDialog && selectedPatientForDirectQueue != null) {
+        val patient = selectedPatientForDirectQueue!!
+        AddToQueueForPatientDialog(
+            patient = patient,
+            doctors = doctors,
+            onDismiss = {
+                showAddToQueueDialog = false
+                selectedPatientForDirectQueue = null
+            },
+            onAddToQueue = { doctorId, complaint, vitals ->
+                coroutineScope.launch {
+                    val res = queueRepo.registerQueueEntry(
+                        patientId = patient.id,
+                        doctorId = doctorId,
+                        chiefComplaint = complaint,
+                        vitals = vitals
+                    )
+                    showAddToQueueDialog = false
+                    selectedPatientForDirectQueue = null
+                    if (res.isSuccess) {
+                        refreshAllData()
+                        Toast.makeText(context, "${patient.fullName} added to Dr.'s queue! Token issued.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
