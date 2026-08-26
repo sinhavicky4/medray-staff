@@ -542,6 +542,34 @@ class BillingRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun getInvoice(invoiceId: String): Result<Invoice> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.getInvoice(id = invoiceId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to load invoice"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun shareInvoice(invoiceId: String, channel: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.shareInvoice(id = invoiceId, req = ShareInvoiceRequest(channel = channel), clinicId = clinicId)
+            if (res.isSuccessful && res.body()?.success == true) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to send invoice"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 class DocumentRepository(private val context: Context) {
@@ -635,10 +663,10 @@ class SelfCheckInRepository(private val context: Context) {
         }
     }
 
-    suspend fun assign(id: String, doctorId: String): Result<QueueEntry> = withContext(Dispatchers.IO) {
+    suspend fun assign(id: String, doctorId: String, visitType: String = "FIRST_VISIT"): Result<QueueEntry> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         try {
-            val req = AssignSelfCheckInRequest(doctorId = doctorId)
+            val req = AssignSelfCheckInRequest(doctorId = doctorId, visitType = visitType)
             val res = api.assignSelfCheckIn(id = id, req = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)

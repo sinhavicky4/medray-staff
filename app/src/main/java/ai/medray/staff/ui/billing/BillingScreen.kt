@@ -34,6 +34,7 @@ import ai.medray.staff.ui.theme.*
 fun BillingScreen(
     invoices: List<Invoice>,
     onCollectPaymentClick: (Invoice) -> Unit,
+    onInvoiceClick: (Invoice) -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -236,7 +237,8 @@ fun BillingScreen(
             items(filtered, key = { it.id }) { invoice ->
                 InvoiceCard(
                     invoice = invoice,
-                    onCollectPayment = { onCollectPaymentClick(invoice) }
+                    onCollectPayment = { onCollectPaymentClick(invoice) },
+                    onClick = { onInvoiceClick(invoice) }
                 )
             }
         }
@@ -247,7 +249,8 @@ fun BillingScreen(
 @Composable
 fun InvoiceCard(
     invoice: Invoice,
-    onCollectPayment: () -> Unit
+    onCollectPayment: () -> Unit,
+    onClick: () -> Unit = {}
 ) {
     val patient = invoice.patient
     val isPaid = invoice.status == InvoiceStatus.PAID
@@ -260,6 +263,7 @@ fun InvoiceCard(
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
         shadowElevation = 1.dp,
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {

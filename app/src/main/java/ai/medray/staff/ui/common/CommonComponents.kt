@@ -40,6 +40,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.User
 import ai.medray.staff.data.model.Vitals
+import ai.medray.staff.data.model.Invoice
+import ai.medray.staff.data.model.InvoiceStatus
+import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.domain.UpiQrGenerator
 import ai.medray.staff.domain.VitalsSeverity
 import ai.medray.staff.domain.VitalsValidator
@@ -920,6 +923,231 @@ fun PrescriptionViewerDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Full invoice view — line items, totals, and payment ledger — with Send on
+ * WhatsApp / Send via Email actions, matching the web app's
+ * InvoiceDetailClient.tsx. [busyChannel] is "whatsapp"/"email" while that
+ * specific send is in flight (mirrors DynamicUpiQrDialog's busy-guard fix:
+ * the button disables and the dialog stays open until the API call
+ * resolves, rather than assuming success immediately).
+ */
+@Composable
+fun InvoiceDetailDialog(
+    invoice: Invoice,
+    busyChannel: String? = null,
+    onDismiss: () -> Unit,
+    onShareWhatsApp: () -> Unit,
+    onShareEmail: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val patient = invoice.patient
+    val isPaid = invoice.status == InvoiceStatus.PAID
+    val statusBg = if (isPaid) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
+    val statusText = if (isPaid) Color(0xFF16A34A) else Color(0xFFD97706)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = PureWhite),
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(vertical = 16.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = MedRayBlueLight, shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                text = "INV-${invoice.invoiceNumber}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MedRayBluePrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(color = statusBg, shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                text = invoice.status.name.replace("_", " "),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate400)
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Slate200)
+
+                Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
+                    Text(
+                        text = patient?.fullName ?: "OPD Patient",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = listOfNotNull(
+                            patient?.uhid?.ifBlank { null }?.let { "UHID $it" },
+                            patient?.phone?.ifBlank { null }
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate500
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Line Items
+                    Surface(
+                        color = Slate50,
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Line Items",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate700
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            invoice.lineItems.forEach { item ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(item.description, style = MaterialTheme.typography.bodyMedium, color = Slate800, modifier = Modifier.weight(1f))
+                                    Text("₹${item.amount.toInt()}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Slate900)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Totals
+                    Surface(
+                        color = Slate50,
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            InvoiceTotalRow("Subtotal", invoice.subtotal)
+                            if (invoice.discountAmount > 0) InvoiceTotalRow("Discount", -invoice.discountAmount)
+                            InvoiceTotalRow("Total", invoice.total, bold = true)
+                            InvoiceTotalRow("Paid", invoice.netPaid)
+                            InvoiceTotalRow("Balance Due", invoice.balanceDue, bold = true, valueColor = if (invoice.balanceDue > 0) Color(0xFFD97706) else Color(0xFF16A34A))
+                        }
+                    }
+
+                    if (invoice.payments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Surface(
+                            color = Slate50,
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(
+                                    text = "Payments",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Slate700
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                invoice.payments.forEach { payment ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(formatIsoDateTimeLocal(payment.recordedAt), style = MaterialTheme.typography.bodySmall, color = Slate600)
+                                            Text(payment.method.name, style = MaterialTheme.typography.labelSmall, color = Slate400)
+                                        }
+                                        Text("₹${payment.amount.toInt()}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Slate900)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Bottom Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (!patient?.phone.isNullOrBlank()) {
+                        Button(
+                            onClick = onShareWhatsApp,
+                            enabled = busyChannel == null,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (busyChannel != "whatsapp") {
+                                Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(if (busyChannel == "whatsapp") "Sending…" else "WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (!patient?.email.isNullOrBlank()) {
+                        Button(
+                            onClick = onShareEmail,
+                            enabled = busyChannel == null,
+                            colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (busyChannel != "email") {
+                                Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(if (busyChannel == "email") "Sending…" else "Email", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InvoiceTotalRow(label: String, amount: Double, bold: Boolean = false, valueColor: Color = Slate900) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (bold) Slate900 else Slate500, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+        Text(
+            "${if (amount < 0) "-" else ""}₹${kotlin.math.abs(amount).toInt()}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (bold) valueColor else Slate700
+        )
     }
 }
 

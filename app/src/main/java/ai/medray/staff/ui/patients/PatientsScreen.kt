@@ -24,11 +24,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.verticalScroll
 import ai.medray.staff.data.model.Patient
+import ai.medray.staff.data.model.Prescription
+import ai.medray.staff.data.model.Visit
+import ai.medray.staff.data.model.formatDateDisplay
+import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
 import ai.medray.staff.ui.theme.*
+
+private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS }
 
 private enum class PatientGenderFilter { ALL, MALE, FEMALE, SENIORS }
 
@@ -451,11 +459,17 @@ fun PatientCard(
 }
 
 /**
- * Detailed Patient Clinical Summary Modal.
+ * Full patient profile — Overview / Visits / Prescriptions, matching the
+ * web app's PatientDetailClient.tsx tabs. [visits] (each carrying its own
+ * nested prescriptions) is fetched once when the dialog opens; Prescriptions
+ * is just those visits' prescriptions flattened, since there's no separate
+ * by-patient prescriptions endpoint — same data the web tab is built from.
  */
 @Composable
 fun PatientDetailsDialog(
     patient: Patient,
+    visits: List<Visit> = emptyList(),
+    visitsLoading: Boolean = false,
     onDismiss: () -> Unit,
     onAddToQueueClick: () -> Unit = {}
 ) {
@@ -464,17 +478,22 @@ fun PatientDetailsDialog(
         if (names.size >= 2) "${names[0].take(1)}${names[1].take(1)}".uppercase()
         else patient.fullName.take(2).uppercase()
     }
+    var tab by remember { mutableStateOf(PatientDetailTab.OVERVIEW) }
+    val prescriptions = remember(visits) { visits.flatMap { v -> v.prescriptions.map { it to v } } }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
             shape = RoundedCornerShape(20.dp),
-            color = PureWhite,
-            shadowElevation = 6.dp,
+            colors = CardDefaults.cardColors(containerColor = PureWhite),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp)
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(vertical = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                 // Header
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -524,29 +543,69 @@ fun PatientDetailsDialog(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickFilterPill(label = "Overview", isSelected = tab == PatientDetailTab.OVERVIEW, onClick = { tab = PatientDetailTab.OVERVIEW })
+                    QuickFilterPill(label = "Visits (${visits.size})", isSelected = tab == PatientDetailTab.VISITS, onClick = { tab = PatientDetailTab.VISITS })
+                    QuickFilterPill(label = "Prescriptions (${prescriptions.size})", isSelected = tab == PatientDetailTab.PRESCRIPTIONS, onClick = { tab = PatientDetailTab.PRESCRIPTIONS })
+                }
+
                 HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
 
-                // Patient Info Grid
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    InfoRow("Age & Gender", "${patient.age ?: "Unknown"} yrs · ${patient.gender.lowercase().replaceFirstChar { it.uppercase() }}")
-                    if (!patient.phone.isNullOrBlank()) {
-                        InfoRow("Phone Number", "+91 ${patient.phone}")
-                    }
-                    if (!patient.email.isNullOrBlank()) {
-                        InfoRow("Email", patient.email)
-                    }
-                    if (!patient.bloodGroup.isNullOrBlank()) {
-                        InfoRow("Blood Group", patient.bloodGroup)
-                    }
-                    if (!patient.address.isNullOrBlank()) {
-                        InfoRow("Address", patient.address)
-                    }
-                    if (!patient.emergencyContact.isNullOrBlank()) {
-                        InfoRow("Emergency Contact", patient.emergencyContact)
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    when (tab) {
+                        PatientDetailTab.OVERVIEW -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                InfoRow("Age & Gender", "${patient.age ?: "Unknown"} yrs · ${patient.gender.lowercase().replaceFirstChar { it.uppercase() }}")
+                                if (!patient.dob.isNullOrBlank()) {
+                                    InfoRow("Date of Birth", formatDateDisplay(patient.dob))
+                                }
+                                if (!patient.phone.isNullOrBlank()) {
+                                    InfoRow("Phone Number", "+91 ${patient.phone}")
+                                }
+                                if (!patient.email.isNullOrBlank()) {
+                                    InfoRow("Email", patient.email)
+                                }
+                                if (!patient.bloodGroup.isNullOrBlank()) {
+                                    InfoRow("Blood Group", patient.bloodGroup)
+                                }
+                                if (!patient.address.isNullOrBlank()) {
+                                    InfoRow("Address", patient.address)
+                                }
+                                if (!patient.emergencyContact.isNullOrBlank()) {
+                                    InfoRow("Emergency Contact", patient.emergencyContact)
+                                }
+                            }
+                        }
+
+                        PatientDetailTab.VISITS -> {
+                            if (visitsLoading) {
+                                Text("Loading visits…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else if (visits.isEmpty()) {
+                                Text("No past visits recorded yet.", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    visits.forEach { visit -> VisitSummaryCard(visit) }
+                                }
+                            }
+                        }
+
+                        PatientDetailTab.PRESCRIPTIONS -> {
+                            if (visitsLoading) {
+                                Text("Loading prescriptions…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else if (prescriptions.isEmpty()) {
+                                Text("No prescriptions on file yet.", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    prescriptions.forEach { (rx, visit) -> PrescriptionSummaryCard(rx, visit) }
+                                }
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -571,6 +630,90 @@ fun PatientDetailsDialog(
                         Text("Add to Queue", fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VisitSummaryCard(visit: Visit) {
+    Surface(
+        color = Slate50,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = formatIsoDateTimeLocal(visit.createdAt),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
+                )
+                Surface(color = Color(0xFFDCFCE7), shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        text = visit.status,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF15803D),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            if (!visit.doctor?.fullName.isNullOrBlank()) {
+                Text("Dr. ${visit.doctor?.fullName}", style = MaterialTheme.typography.bodySmall, color = Slate600)
+            }
+            if (!visit.chiefComplaint.isNullOrBlank()) {
+                Text("Complaint: ${visit.chiefComplaint}", style = MaterialTheme.typography.bodySmall, color = Slate700, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (!visit.diagnosis.isNullOrBlank()) {
+                Text("Diagnosis: ${visit.diagnosis}", style = MaterialTheme.typography.bodySmall, color = Slate700, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrescriptionSummaryCard(rx: Prescription, visit: Visit) {
+    Surface(
+        color = Slate50,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = formatIsoDateTimeLocal(rx.createdAt ?: visit.createdAt),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
+                )
+                if (!visit.doctor?.fullName.isNullOrBlank()) {
+                    Text("Dr. ${visit.doctor?.fullName}", style = MaterialTheme.typography.labelSmall, color = Slate500)
+                }
+            }
+            if (rx.items.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                rx.items.forEach { item ->
+                    Text(
+                        text = "• ${item.medicineName}${item.dosage.let { d -> if (d.isNotBlank()) " ($d)" else "" }} — ${item.frequencyCode}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate700
+                    )
+                }
+            }
+            if (!rx.adviceNotes.isNullOrBlank()) {
+                Text("Advice: ${rx.adviceNotes}", style = MaterialTheme.typography.bodySmall, color = Slate600, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }
