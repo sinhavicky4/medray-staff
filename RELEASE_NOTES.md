@@ -1,3 +1,9 @@
+# MedRay Staff Version 0.3.2 Release Notes
+
+- **🧾 Invoice Detail & Send Receipt**: Tapping an invoice in Billing now opens a full detail view — line items, totals, payment history — with one-tap Send on WhatsApp / Send via Email, matching the web portal.
+- **🩺 Fixed Self Check-In "Assign Doctor"**: The kiosk check-in's Assign button was opening the wrong dialog and silently failing to route the patient to a doctor. It now opens a dedicated Assign Doctor dialog scoped to that exact check-in and correctly adds them to the queue.
+- **👤 Full Patient Profile**: Tapping a patient in the Patients Directory now opens their full profile — Overview, Visit history, and Prescriptions — instead of just a name/UHID toast.
+
 # MedRay Staff Version 0.3.1 Release Notes
 
 - **🛠️ Fixed Billing Invoice "null" Text**: Invoice numbers were rendering as the literal text "null" throughout Billing — the fields the app expected the server to send never actually existed. Invoice numbers are now correctly derived from the invoice ID, matching the web app.
