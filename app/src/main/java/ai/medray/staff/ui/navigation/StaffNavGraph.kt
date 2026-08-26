@@ -713,16 +713,26 @@ fun StaffAppNavHost(
                                 }
                             },
                             onCollectPaymentClick = { entry ->
-                                upiModalData = UpiPaymentModalData(
-                                    payeeVpa = currentUser?.clinic?.effectiveUpiId ?: "medray@upi",
-                                    payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
-                                    amount = currentUser?.clinic?.defaultConsultationFee ?: 500.0,
-                                    invoiceNumber = entry.opdNumber,
-                                    queueEntryId = entry.id,
-                                    patientId = entry.patientId,
-                                    doctorId = entry.doctorId,
-                                    doctorName = entry.doctor?.fullName
-                                )
+                                // No fallback to "medray@upi" — a QR that looks legitimate
+                                // but pays into a placeholder VPA instead of this clinic's
+                                // real account would misdirect a patient's money with no
+                                // indication anything was wrong. Block entirely until a
+                                // real UPI ID is configured (web: Clinic Settings).
+                                val configuredUpiId = currentUser?.clinic?.upiId?.ifBlank { null } ?: currentUser?.clinic?.upiVpa?.ifBlank { null }
+                                if (configuredUpiId == null) {
+                                    Toast.makeText(context, "This clinic hasn't set up a UPI ID yet. Ask your Clinic Admin to add one in Clinic Settings on the web portal.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    upiModalData = UpiPaymentModalData(
+                                        payeeVpa = configuredUpiId,
+                                        payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
+                                        amount = currentUser?.clinic?.defaultConsultationFee ?: 500.0,
+                                        invoiceNumber = entry.opdNumber,
+                                        queueEntryId = entry.id,
+                                        patientId = entry.patientId,
+                                        doctorId = entry.doctorId,
+                                        doctorName = entry.doctor?.fullName
+                                    )
+                                }
                             },
                             onWhatsAppClick = { entry ->
                                 val phone = entry.patient?.phone ?: ""
@@ -796,12 +806,18 @@ fun StaffAppNavHost(
                         isRefreshing = isRefreshing,
                         onRefresh = { refreshAllData() },
                         onCollectPaymentClick = { invoice ->
-                            upiModalData = UpiPaymentModalData(
-                                payeeVpa = currentUser?.clinic?.effectiveUpiId ?: "medray@upi",
-                                payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
-                                amount = invoice.total,
-                                invoiceNumber = invoice.invoiceNumber
-                            )
+                            // Same block as the queue's Collect Payment — see its comment.
+                            val configuredUpiId = currentUser?.clinic?.upiId?.ifBlank { null } ?: currentUser?.clinic?.upiVpa?.ifBlank { null }
+                            if (configuredUpiId == null) {
+                                Toast.makeText(context, "This clinic hasn't set up a UPI ID yet. Ask your Clinic Admin to add one in Clinic Settings on the web portal.", Toast.LENGTH_LONG).show()
+                            } else {
+                                upiModalData = UpiPaymentModalData(
+                                    payeeVpa = configuredUpiId,
+                                    payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
+                                    amount = invoice.total,
+                                    invoiceNumber = invoice.invoiceNumber
+                                )
+                            }
                         }
                     )
                 }

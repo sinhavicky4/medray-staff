@@ -69,10 +69,7 @@ data class Clinic(
     val upiId: String? = null,
     val upiVpa: String? = null, // VPA for dynamic UPI QR generation
     val defaultConsultationFee: Double = 500.0
-) : java.io.Serializable {
-    val effectiveUpiId: String
-        get() = upiId?.ifBlank { null } ?: upiVpa?.ifBlank { null } ?: "medray@upi"
-}
+) : java.io.Serializable
 
 data class User(
     val id: String,
