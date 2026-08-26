@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
         val doctorRepo = DoctorRepository(this)
         val selfCheckInRepo = SelfCheckInRepository(this)
         val visitRepo = VisitRepository(this)
+        val chatRepo = ChatRepository(this)
 
         setContent {
             MedRayStaffTheme {
@@ -39,7 +40,8 @@ class MainActivity : ComponentActivity() {
                         billingRepo = billingRepo,
                         doctorRepo = doctorRepo,
                         selfCheckInRepo = selfCheckInRepo,
-                        visitRepo = visitRepo
+                        visitRepo = visitRepo,
+                        chatRepo = chatRepo
                     )
                 }
             }

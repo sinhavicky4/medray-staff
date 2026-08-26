@@ -130,7 +130,8 @@ data class Clinic(
     val gstNumber: String? = null,
     val upiId: String? = null,
     val upiVpa: String? = null, // VPA for dynamic UPI QR generation
-    val defaultConsultationFee: Double = 500.0
+    val defaultConsultationFee: Double = 500.0,
+    val chatAssistantEnabled: Boolean = false
 ) : java.io.Serializable
 
 data class User(
@@ -395,3 +396,54 @@ data class Visit(
     val clinic: Clinic? = null,
     val createdAt: String
 ) : Serializable
+
+// Chat Assistant (mirrors web's ChatMessage/ChatPendingAction/ChatResponse,
+// api/src/routes/chat.ts) — not Serializable like the models above: content
+// is deliberately opaque (round-tripped verbatim to/from the Anthropic SDK,
+// same as web treats it) and Gson deserializes it into LinkedTreeMap/
+// ArrayList instances that aren't Serializable themselves, so a blanket
+// `: Serializable` here would just fail at runtime the first time Android
+// actually tried to serialize one. This screen only ever holds chat state
+// in in-memory Compose state, never a Bundle/Intent extra, so it's not needed.
+
+data class ChatMessage(
+    val role: String,
+    val content: Any? = null,
+    val timestamp: String? = null
+)
+
+data class ChatPendingAction(
+    val name: String,
+    val input: Map<String, Any?> = emptyMap()
+)
+
+data class ChatResponse(
+    val messages: List<ChatMessage> = emptyList(),
+    val reply: String? = null,
+    val pendingAction: ChatPendingAction? = null
+)
+
+data class ChatHistoryResponse(
+    val messages: List<ChatMessage> = emptyList()
+)
+
+/**
+ * Extracts the display text from a ChatMessage's opaque `content` — either
+ * a plain string, or (once Gson decodes an Anthropic content-block array
+ * into List<Map<*, *>>) the concatenated text of every {type: "text"}
+ * block. Mirrors ChatConversation.tsx's own extractText().
+ */
+fun extractChatText(content: Any?): String = when (content) {
+    is String -> content
+    is List<*> -> content.filterIsInstance<Map<*, *>>()
+        .filter { it["type"] == "text" }
+        .mapNotNull { it["text"] as? String }
+        .joinToString("\n")
+    else -> ""
+}
+
+/** "vitalsBp" -> "BP", "chiefComplaint" -> "Chief Complaint" — mirrors ChatConversation.tsx's fieldLabel(). */
+fun chatFieldLabel(key: String): String {
+    val stripped = key.removePrefix("vitals").ifBlank { key }
+    return stripped.replace(Regex("([A-Z])"), " $1").trim().replaceFirstChar { it.uppercase() }
+}

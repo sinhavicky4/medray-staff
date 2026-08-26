@@ -47,6 +47,7 @@ import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
 import ai.medray.staff.ui.selfcheckins.AssignSelfCheckInDialog
 import ai.medray.staff.domain.InvoicePdfActions
+import ai.medray.staff.ui.chat.ChatScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -308,6 +309,7 @@ sealed class Screen(val route: String) {
     object Billing : Screen("billing")
     object SelfCheckIns : Screen("self_checkins")
     object Profile : Screen("profile")
+    object Chat : Screen("chat")
 }
 
 data class UpiPaymentModalData(
@@ -332,6 +334,7 @@ fun StaffAppNavHost(
     doctorRepo: DoctorRepository,
     selfCheckInRepo: SelfCheckInRepository,
     visitRepo: VisitRepository,
+    chatRepo: ChatRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -401,6 +404,19 @@ fun StaffAppNavHost(
     var patientDetailVisits by remember { mutableStateOf<List<Visit>>(emptyList()) }
     var patientDetailVisitsLoading by remember { mutableStateOf(false) }
 
+    // Chat Assistant state — hydrated from the server-persisted thread the
+    // first time Screen.Chat is visited each session (same pattern as web's
+    // useChatAssistant loading via GET /history on mount), not re-fetched
+    // on every visit since the in-memory list already reflects it.
+    var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var chatHistoryLoaded by remember { mutableStateOf(false) }
+    var chatAssistantName by remember { mutableStateOf("Swati") }
+    var chatInput by remember { mutableStateOf("") }
+    var chatSending by remember { mutableStateOf(false) }
+    var chatPendingAction by remember { mutableStateOf<ChatPendingAction?>(null) }
+    var chatConfirming by remember { mutableStateOf(false) }
+    var chatError by remember { mutableStateOf<String?>(null) }
+
 // Initial auth check handled seamlessly in SplashScreen
 
     var isRefreshing by remember { mutableStateOf(false) }
@@ -456,6 +472,100 @@ fun StaffAppNavHost(
         }
     }
 
+    fun sendChatMessage(text: String) {
+        if (text.isBlank() || chatSending) return
+        val next = chatMessages + ChatMessage(role = "user", content = text, timestamp = java.time.Instant.now().toString())
+        chatMessages = next
+        chatInput = ""
+        chatSending = true
+        chatError = null
+        coroutineScope.launch {
+            val res = chatRepo.sendMessage(next)
+            chatSending = false
+            if (res.isSuccess) {
+                val body = res.getOrNull()!!
+                chatMessages = body.messages
+                chatPendingAction = body.pendingAction
+            } else {
+                chatError = res.exceptionOrNull()?.message ?: "The assistant didn't respond — try again."
+            }
+        }
+    }
+
+    // Mirrors useChatAssistant.ts's confirmAction() switch — each branch
+    // calls the same repository method the app's own dedicated flow for
+    // that action already uses, so a confirmed chat action behaves
+    // identically to doing it by hand elsewhere in the app.
+    fun confirmChatAction() {
+        val action = chatPendingAction ?: return
+        val i = action.input
+        chatConfirming = true
+        chatError = null
+        coroutineScope.launch {
+            val result: Result<String> = try {
+                when (action.name) {
+                    "propose_create_patient" -> {
+                        val res = patientRepo.registerPatient(
+                            RegisterPatientRequest(
+                                fullName = i["fullName"] as? String ?: "",
+                                phone = i["phone"] as? String,
+                                dob = i["dob"] as? String,
+                                gender = i["gender"] as? String ?: "MALE",
+                                email = i["email"] as? String,
+                                address = i["address"] as? String
+                            )
+                        )
+                        res.map { "✅ Registered ${it.fullName} (UHID ${it.uhid})." }
+                    }
+                    "propose_register_queue_entry" -> {
+                        val res = queueRepo.registerQueueEntry(
+                            patientId = i["patientId"] as? String ?: "",
+                            doctorId = i["doctorId"] as? String ?: "",
+                            chiefComplaint = i["chiefComplaint"] as? String ?: ""
+                        )
+                        res.map { "✅ Added ${it.patient?.fullName ?: "patient"} to the queue (OPD ${it.opdNumber})." }
+                    }
+                    "propose_record_vitals" -> {
+                        val queueEntryId = i["queueEntryId"] as? String ?: ""
+                        val vitals = Vitals(
+                            vitalsBp = i["vitalsBp"] as? String,
+                            vitalsTemperatureF = (i["vitalsTemperatureF"] as? Number)?.toDouble(),
+                            vitalsPulseBpm = (i["vitalsPulseBpm"] as? Number)?.toInt(),
+                            vitalsRespRate = (i["vitalsRespRate"] as? Number)?.toInt(),
+                            vitalsSpo2 = (i["vitalsSpo2"] as? Number)?.toInt(),
+                            vitalsWeightKg = (i["vitalsWeightKg"] as? Number)?.toDouble(),
+                            vitalsHeightCm = (i["vitalsHeightCm"] as? Number)?.toDouble()
+                        )
+                        val patientName = queueEntries.find { it.id == queueEntryId }?.patient?.fullName ?: "patient"
+                        queueRepo.updateVitals(queueEntryId, vitals).map { "✅ Vitals saved for $patientName." }
+                    }
+                    "propose_book_appointment" -> {
+                        val res = appointmentRepo.createAppointment(
+                            BookAppointmentRequest(
+                                patientId = i["patientId"] as? String ?: "",
+                                doctorId = i["doctorId"] as? String ?: "",
+                                scheduledAt = i["scheduledAt"] as? String ?: "",
+                                chiefComplaint = i["chiefComplaint"] as? String ?: ""
+                            )
+                        )
+                        res.map { "✅ Appointment booked for ${it.patient.fullName}." }
+                    }
+                    else -> Result.failure(Exception("Unknown action"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            chatConfirming = false
+            if (result.isSuccess) {
+                chatMessages = chatMessages + ChatMessage(role = "assistant", content = result.getOrNull())
+                chatPendingAction = null
+                refreshAllData()
+            } else {
+                chatError = result.exceptionOrNull()?.message ?: "Couldn't complete that action"
+            }
+        }
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
     val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route
@@ -467,8 +577,10 @@ fun StaffAppNavHost(
         Screen.Billing.route -> "Billing & Payments"
         Screen.SelfCheckIns.route -> "Self Check-In Kiosk"
         Screen.Profile.route -> "Staff Profile"
+        Screen.Chat.route -> "Chat Assistant"
         else -> "MedRay Staff"
     }
+    val screenSubtitle = if (currentRoute == Screen.Chat.route) chatAssistantName else (currentUser?.clinic?.name ?: "Main Clinic")
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -479,6 +591,7 @@ fun StaffAppNavHost(
                     user = currentUser,
                     currentRoute = currentRoute,
                     pendingSelfCheckInCount = selfCheckInsList.size,
+                    chatAssistantEnabled = currentUser?.clinic?.chatAssistantEnabled == true,
                     onNavigate = { route ->
                         coroutineScope.launch { drawerState.close() }
                         if (route != currentRoute) {
@@ -505,7 +618,7 @@ fun StaffAppNavHost(
                 if (isAppAuthenticated) {
                     MedRayTopBar(
                         title = screenTitle,
-                        subtitle = currentUser?.clinic?.name ?: "Main Clinic",
+                        subtitle = screenSubtitle,
                         user = currentUser,
                         onMenuClick = {
                             coroutineScope.launch { drawerState.open() }
@@ -886,6 +999,32 @@ fun StaffAppNavHost(
                             currentUser = null
                             navController.navigate(Screen.Login.route) { popUpTo(0) }
                         }
+                    )
+                }
+
+                // 9. Chat Assistant Screen
+                composable(Screen.Chat.route) {
+                    LaunchedEffect(Unit) {
+                        if (!chatHistoryLoaded) {
+                            chatHistoryLoaded = true
+                            val res = chatRepo.getHistory()
+                            if (res.isSuccess) chatMessages = res.getOrDefault(emptyList())
+                            val nameRes = chatRepo.getAssistantName()
+                            if (nameRes.isSuccess) chatAssistantName = nameRes.getOrDefault("Swati")
+                        }
+                    }
+                    ChatScreen(
+                        messages = chatMessages,
+                        input = chatInput,
+                        onInputChange = { chatInput = it },
+                        sending = chatSending,
+                        pendingAction = chatPendingAction,
+                        confirming = chatConfirming,
+                        error = chatError,
+                        onSend = { sendChatMessage(chatInput) },
+                        onSuggestedPrompt = { sendChatMessage(it) },
+                        onConfirmAction = { confirmChatAction() },
+                        onDismissAction = { chatPendingAction = null }
                     )
                 }
             }

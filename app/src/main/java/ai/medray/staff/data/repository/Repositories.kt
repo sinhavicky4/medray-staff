@@ -708,3 +708,60 @@ class VisitRepository(private val context: Context) {
         }
     }
 }
+
+class ChatRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+
+    suspend fun getHistory(): Result<List<ChatMessage>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.getChatHistory(clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!.messages)
+            } else {
+                Result.failure(Exception("Failed to load chat history"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun sendMessage(messages: List<ChatMessage>): Result<ChatResponse> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.sendChatMessage(SendChatMessageRequest(messages), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "The assistant didn't respond — try again."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun clearHistory(): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.clearChatHistory(clinicId = clinicId)
+            if (res.isSuccessful) Result.success(Unit) else Result.failure(Exception("Failed to clear the conversation"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** The configured assistant display name (default "Swati") — same PlatformConfig row the web app's /chat page reads. */
+    suspend fun getAssistantName(): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.getPlatformConfig()
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!.chatAssistantName)
+            } else {
+                Result.failure(Exception("Failed to load config"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}

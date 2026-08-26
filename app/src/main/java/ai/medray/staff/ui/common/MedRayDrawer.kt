@@ -43,9 +43,10 @@ fun MedRayDrawerContent(
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit,
     pendingSelfCheckInCount: Int = 0,
+    chatAssistantEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val items = listOf(
+    val items = listOfNotNull(
         DrawerMenuItem(
             route = "queue",
             title = if (user?.isNurse == true) "Triage Queue" else "OPD Queue",
@@ -82,7 +83,15 @@ fun MedRayDrawerContent(
             title = "Staff Profile",
             selectedIcon = Icons.Filled.AccountCircle,
             unselectedIcon = Icons.Outlined.AccountCircle
-        )
+        ),
+        if (chatAssistantEnabled) {
+            DrawerMenuItem(
+                route = "chat",
+                title = "Chat Assistant",
+                selectedIcon = Icons.Filled.Chat,
+                unselectedIcon = Icons.Outlined.Chat
+            )
+        } else null
     )
 
     ModalDrawerSheet(

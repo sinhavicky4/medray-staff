@@ -345,4 +345,28 @@ interface StaffApiService {
 
     @DELETE("patients/documents/{documentId}")
     suspend fun deleteDocument(@Path("documentId") documentId: String): Response<Unit>
+
+    // Chat Assistant — mirrors web's api.chat.* (web/src/lib/api.ts). Gated
+    // server-side to SUPER_ADMIN/CLINIC_ADMIN/RECEPTIONIST/NURSE, same roles
+    // this app already runs as.
+    @GET("chat/history")
+    suspend fun getChatHistory(@Query("clinicId") clinicId: String? = null): Response<ChatHistoryResponse>
+
+    @POST("chat/message")
+    suspend fun sendChatMessage(
+        @Body req: SendChatMessageRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<ChatResponse>
+
+    @DELETE("chat/history")
+    suspend fun clearChatHistory(@Query("clinicId") clinicId: String? = null): Response<Unit>
+
+    // Public, no auth — same one row (PlatformConfig) the web app reads so
+    // both clients show the same configured assistant name instead of a
+    // hardcoded default.
+    @GET("config")
+    suspend fun getPlatformConfig(): Response<PlatformConfigResponse>
 }
+
+data class SendChatMessageRequest(val messages: List<ChatMessage>)
+data class PlatformConfigResponse(val appName: String = "MedRay AI", val chatAssistantName: String = "Swati")
