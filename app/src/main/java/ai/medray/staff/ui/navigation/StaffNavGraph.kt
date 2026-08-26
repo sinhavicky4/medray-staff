@@ -1,5 +1,7 @@
 package ai.medray.staff.ui.navigation
 
+import ai.medray.staff.ui.common.PrescriptionViewerDialog
+
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -310,7 +312,10 @@ data class UpiPaymentModalData(
     val payeeName: String,
     val amount: Double,
     val invoiceNumber: String,
-    val queueEntryId: String? = null
+    val queueEntryId: String? = null,
+    val patientId: String? = null,
+    val doctorId: String? = null,
+    val doctorName: String? = null
 )
 
 @Composable
@@ -322,6 +327,7 @@ fun StaffAppNavHost(
     billingRepo: BillingRepository,
     doctorRepo: DoctorRepository,
     selfCheckInRepo: SelfCheckInRepository,
+    visitRepo: VisitRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -376,6 +382,8 @@ fun StaffAppNavHost(
 
     // Dialog States
     var vitalsTargetEntry by remember { mutableStateOf<QueueEntry?>(null) }
+    var rxTargetEntry by remember { mutableStateOf<QueueEntry?>(null) }
+    var currentVisitForRx by remember { mutableStateOf<Visit?>(null) }
     var showWalkInDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
 
@@ -642,8 +650,18 @@ fun StaffAppNavHost(
                         NurseHomeScreen(
                             queue = queueEntries,
                             searchQuery = searchQuery,
+                            userName = currentUser?.fullName,
                             onSearchChange = { searchQuery = it },
                             onRecordVitalsClick = { entry -> vitalsTargetEntry = entry },
+                            onViewPrescriptionClick = { entry ->
+                                rxTargetEntry = entry
+                                coroutineScope.launch {
+                                    val res = visitRepo.getPatientVisits(entry.patientId)
+                                    if (res.isSuccess) {
+                                        currentVisitForRx = res.getOrNull()?.firstOrNull()
+                                    }
+                                }
+                            },
                             onScanDocumentClick = { entry ->
                                 Toast.makeText(context, "Document Scanner opened for ${entry.patient?.fullName}", Toast.LENGTH_SHORT).show()
                             },
@@ -660,9 +678,19 @@ fun StaffAppNavHost(
                             queue = queueEntries,
                             doctors = doctors,
                             selectedDoctorId = selectedDoctorId,
+                            userName = currentUser?.fullName,
                             onDoctorFilterChange = { selectedDoctorId = it },
                             onNewWalkInClick = { showWalkInDialog = true },
                             onRecordVitalsClick = { entry -> vitalsTargetEntry = entry },
+                            onViewPrescriptionClick = { entry ->
+                                rxTargetEntry = entry
+                                coroutineScope.launch {
+                                    val res = visitRepo.getPatientVisits(entry.patientId)
+                                    if (res.isSuccess) {
+                                        currentVisitForRx = res.getOrNull()?.firstOrNull()
+                                    }
+                                }
+                            },
                             onStatusChange = { entry, newStatus ->
                                 queueEntries = queueEntries.map { if (it.id == entry.id) it.copy(status = newStatus) else it }
                                 coroutineScope.launch {
@@ -676,7 +704,10 @@ fun StaffAppNavHost(
                                     payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
                                     amount = currentUser?.clinic?.defaultConsultationFee ?: 500.0,
                                     invoiceNumber = entry.opdNumber,
-                                    queueEntryId = entry.id
+                                    queueEntryId = entry.id,
+                                    patientId = entry.patientId,
+                                    doctorId = entry.doctorId,
+                                    doctorName = entry.doctor?.fullName
                                 )
                             },
                             onWhatsAppClick = { entry ->
@@ -816,18 +847,23 @@ fun StaffAppNavHost(
             onDismiss = { showWalkInDialog = false },
             onRegister = { patientName, phone, doctorId, complaint, age, gender ->
                 coroutineScope.launch {
+                    val formattedPhone = if (phone.startsWith("+91")) phone else "+91$phone"
                     val pRes = patientRepo.registerPatient(
                         RegisterPatientRequest(
                             fullName = patientName,
-                            phone = phone,
+                            phone = formattedPhone,
                             age = age,
                             gender = gender
                         )
                     )
-                    if (pRes.isSuccess) {
-                        val newPatient = pRes.getOrNull()!!
+                    var targetPatient = pRes.getOrNull()
+                    if (targetPatient == null) {
+                        val searchRes = patientRepo.searchPatients(phone)
+                        targetPatient = searchRes.getOrNull()?.firstOrNull()
+                    }
+                    if (targetPatient != null) {
                         queueRepo.registerQueueEntry(
-                            patientId = newPatient.id,
+                            patientId = targetPatient.id,
                             doctorId = doctorId,
                             chiefComplaint = complaint
                         )
@@ -835,7 +871,7 @@ fun StaffAppNavHost(
                         refreshAllData()
                         Toast.makeText(context, "Walk-In Registered! Token issued.", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Failed to register patient", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Failed to register: ${pRes.exceptionOrNull()?.message ?: "Unknown error"}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -851,12 +887,58 @@ fun StaffAppNavHost(
             onDismiss = { upiModalData = null },
             onMarkPaid = {
                 coroutineScope.launch {
+                    val invoiceAmount = data.amount
+                    // 1. Create formal invoice in billing ledger if patientId exists
+                    if (data.patientId != null) {
+                        val createRes = billingRepo.createInvoice(
+                            patientId = data.patientId,
+                            discountAmount = 0.0,
+                            lineItems = listOf(
+                                CreateInvoiceLineItemInput(
+                                    description = "OPD Consultation Fee (Dr. ${data.doctorName ?: "Doctor"})",
+                                    quantity = 1,
+                                    unitPrice = invoiceAmount,
+                                    amount = invoiceAmount
+                                )
+                            )
+                        )
+                        if (createRes.isSuccess) {
+                            val inv = createRes.getOrNull()!!
+                            billingRepo.recordPayment(
+                                invoiceId = inv.id,
+                                amount = invoiceAmount,
+                                paymentMethod = PaymentMethod.UPI,
+                                transactionRef = "UPI-OPD-${data.invoiceNumber}"
+                            )
+                        }
+                    }
+                    // 2. Advance Queue Status to WAITING
                     if (data.queueEntryId != null) {
                         queueRepo.updateStatus(data.queueEntryId, QueueStatus.WAITING)
                     }
                     upiModalData = null
                     refreshAllData()
-                    Toast.makeText(context, "Payment of ₹${data.amount.toInt()} marked as PAID", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    rxTargetEntry?.let { entry ->
+        PrescriptionViewerDialog(
+            entry = entry,
+            visit = currentVisitForRx,
+            onDismiss = {
+                rxTargetEntry = null
+                currentVisitForRx = null
+            },
+            onShareWhatsApp = {
+                val phone = entry.patient?.phone ?: ""
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$phone?text=Hello%20${entry.patient?.fullName},%20your%20medical%20prescription%20for%20Token%20${entry.opdNumber}%20is%20ready%20at%20${currentUser?.clinic?.name ?: "MedRay AI Clinic"}."))
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
                 }
             }
         )

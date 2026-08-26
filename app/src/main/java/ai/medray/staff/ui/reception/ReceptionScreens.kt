@@ -43,9 +43,11 @@ fun ReceptionHomeScreen(
     queue: List<QueueEntry>,
     doctors: List<DoctorSummary>,
     selectedDoctorId: String?,
+    userName: String? = null,
     onDoctorFilterChange: (String?) -> Unit,
     onNewWalkInClick: () -> Unit,
     onRecordVitalsClick: (QueueEntry) -> Unit,
+    onViewPrescriptionClick: (QueueEntry) -> Unit = {},
     onStatusChange: (QueueEntry, QueueStatus) -> Unit,
     onCollectPaymentClick: (QueueEntry) -> Unit,
     onWhatsAppClick: (QueueEntry) -> Unit,
@@ -115,8 +117,9 @@ fun ReceptionHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    val displayName = userName?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "Front Desk" } ?: "Front Desk"
                     Text(
-                        text = "$greeting, Front Desk 👋",
+                        text = "$greeting, $displayName 👋",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Slate900
@@ -384,6 +387,7 @@ fun ReceptionHomeScreen(
                 ReceptionPatientCard(
                     entry = entry,
                     onRecordVitalsClick = { onRecordVitalsClick(entry) },
+                    onViewPrescriptionClick = { onViewPrescriptionClick(entry) },
                     onStatusChange = { onStatusChange(entry, it) },
                     onCollectPaymentClick = { onCollectPaymentClick(entry) },
                     onWhatsAppClick = { onWhatsAppClick(entry) }
@@ -397,6 +401,7 @@ fun ReceptionHomeScreen(
 fun ReceptionPatientCard(
     entry: QueueEntry,
     onRecordVitalsClick: () -> Unit,
+    onViewPrescriptionClick: () -> Unit = {},
     onStatusChange: (QueueStatus) -> Unit,
     onCollectPaymentClick: () -> Unit,
     onWhatsAppClick: () -> Unit
@@ -595,16 +600,29 @@ fun ReceptionPatientCard(
                     )
                 }
 
-                Button(
-                    onClick = onCollectPaymentClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Collect Fee", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (entry.status == QueueStatus.COMPLETED) {
+                    Button(
+                        onClick = onViewPrescriptionClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("View Rx", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = onCollectPaymentClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Collect Fee", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 OutlinedButton(

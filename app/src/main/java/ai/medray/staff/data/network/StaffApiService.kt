@@ -140,8 +140,8 @@ interface StaffApiService {
     @GET("clinics")
     suspend fun listClinics(): Response<List<Clinic>>
 
-    @GET("staff/doctors")
-    suspend fun listDoctors(@Query("clinicId") clinicId: String? = null): Response<List<DoctorSummary>>
+    @GET("users")
+    suspend fun listUsers(@Query("clinicId") clinicId: String? = null): Response<List<User>>
 
     // Queue
     @GET("queue")
@@ -277,6 +277,16 @@ interface StaffApiService {
         @Body req: RecordPaymentRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<Invoice>
+
+    // Visits & Prescriptions
+    @GET("visits")
+    suspend fun listVisits(
+        @Query("patientId") patientId: String,
+        @Query("limit") limit: Int = 20
+    ): Response<List<Visit>>
+
+    @GET("prescriptions/{id}")
+    suspend fun getPrescription(@Path("id") id: String): Response<Prescription>
 
     // Documents
     @GET("patients/{patientId}/documents")

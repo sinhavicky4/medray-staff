@@ -286,3 +286,47 @@ data class SelfCheckIn(
     val createdAt: String,
     val patient: Patient? = null
 ) : Serializable
+
+data class PrescriptionItem(
+    val id: String? = null,
+    val medicineName: String,
+    val genericName: String? = null,
+    val brandName: String? = null,
+    val dosage: String,
+    val frequencyCode: String,
+    val durationDays: Int? = null,
+    val foodInstruction: String,
+    val route: String = "Oral",
+    val sortOrder: Int = 0
+) : Serializable
+
+data class Prescription(
+    val id: String,
+    val visitId: String? = null,
+    val doctorId: String? = null,
+    val patientId: String? = null,
+    val status: String = "SIGNED",
+    val diagnosisRef: List<String> = emptyList(),
+    val adviceNotes: String? = null,
+    val testsAdvised: String? = null,
+    val canvasImageUrl: String? = null,
+    val pdfUrl: String? = null,
+    val items: List<PrescriptionItem> = emptyList(),
+    val createdAt: String? = null
+) : Serializable
+
+data class Visit(
+    val id: String,
+    val clinicId: String,
+    val patientId: String,
+    val doctorId: String,
+    val chiefComplaint: String? = null,
+    val diagnosis: String? = null,
+    val status: String = "COMPLETED",
+    val vitals: Vitals? = null,
+    val prescriptions: List<Prescription> = emptyList(),
+    val documents: List<PatientDocument> = emptyList(),
+    val doctor: DoctorSummary? = null,
+    val clinic: Clinic? = null,
+    val createdAt: String
+) : Serializable

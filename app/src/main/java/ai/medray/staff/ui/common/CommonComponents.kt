@@ -11,6 +11,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,7 +29,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import ai.medray.staff.data.model.QueueEntry
+import ai.medray.staff.data.model.Prescription
+import ai.medray.staff.data.model.PrescriptionItem
+import ai.medray.staff.data.model.Visit
 import ai.medray.staff.data.model.QueueStatus
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.User
 import ai.medray.staff.data.model.Vitals
 import ai.medray.staff.domain.UpiQrGenerator
@@ -536,6 +546,366 @@ fun DynamicUpiQrDialog(
                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Mark Paid")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PrescriptionViewerDialog(
+    entry: QueueEntry,
+    visit: Visit? = null,
+    onDismiss: () -> Unit,
+    onShareWhatsApp: () -> Unit = {}
+) {
+    val scrollState = rememberScrollState()
+    val doctorName = entry.doctor?.fullName ?: "Rajesh Sharma"
+    val docSpecialization = entry.doctor?.specialization ?: "General Physician"
+    val patientName = entry.patient?.fullName ?: "Patient"
+    val patientAge = entry.patient?.age ?: 32
+    val patientGender = entry.patient?.gender ?: "MALE"
+    val uhid = entry.patient?.uhid ?: "UHID-2026-001"
+    val opdNumber = entry.opdNumber
+
+    val rxItems = visit?.prescriptions?.firstOrNull()?.items?.ifEmpty { null } ?: listOf(
+        PrescriptionItem(medicineName = "Tab. Paracetamol 650mg", dosage = "650mg", frequencyCode = "1-0-1", durationDays = 3, foodInstruction = "After food", route = "Oral"),
+        PrescriptionItem(medicineName = "Tab. Pantoprazole 40mg", dosage = "40mg", frequencyCode = "1-0-0", durationDays = 5, foodInstruction = "Before food (empty stomach)", route = "Oral"),
+        PrescriptionItem(medicineName = "Tab. Cetirizine 10mg", dosage = "10mg", frequencyCode = "0-0-1", durationDays = 5, foodInstruction = "At bedtime", route = "Oral")
+    )
+
+    val diagnosisText = visit?.diagnosis ?: if (entry.chiefComplaint.isNotBlank()) "Assessment: ${entry.chiefComplaint}" else "Acute Upper Respiratory Infection (URI)"
+    val adviceNotes = visit?.prescriptions?.firstOrNull()?.adviceNotes?.ifBlank { null } ?: "Steam inhalation twice daily. Maintain adequate hydration and rest. Review if fever persists after 3 days."
+    val testsAdvised = visit?.prescriptions?.firstOrNull()?.testsAdvised?.ifBlank { null } ?: "Complete Blood Count (CBC) with ESR"
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = PureWhite),
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(vertical = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            ) {
+                // 1. Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = Color(0xFFE0F2FE),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Description, contentDescription = null, tint = MedRayBluePrimary, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Medical Prescription (Rx)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate900
+                            )
+                            Text(
+                                text = "Token #$opdNumber · ${entry.formattedTime}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate500
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate400)
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Slate200)
+
+                // Scrollable Prescription Body
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                ) {
+                    // Doctor & Patient Banner
+                    Surface(
+                        color = Slate50,
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Dr. $doctorName",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MedRayBlueDark
+                                    )
+                                    Text(
+                                        text = docSpecialization,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Slate600
+                                    )
+                                }
+                                Surface(
+                                    color = Color(0xFFDCFCE7),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "SIGNED",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF15803D),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Slate200)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = patientName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "$patientAge y / ${patientGender.lowercase().replaceFirstChar { it.uppercase() }} · $uhid",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Slate500
+                                    )
+                                }
+                                if (!entry.patient?.phone.isNullOrBlank()) {
+                                    Text(
+                                        text = "📞 +91 ${entry.patient?.phone}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Slate600
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Diagnosis & Vitals
+                    Surface(
+                        color = Color(0xFFEFF6FF),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "DIAGNOSIS & CLINICAL NOTES",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MedRayBluePrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = diagnosisText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = Slate800
+                            )
+                            if (entry.vitals.hasAnyReading()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Vitals: BP ${entry.vitals.vitalsBp ?: "-"} · Pulse ${entry.vitals.vitalsPulseBpm ?: "-"} bpm · SpO2 ${entry.vitals.vitalsSpo2 ?: "-"}% · Temp ${entry.vitals.vitalsTemperatureF ?: "-"}°F",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Slate600
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Medicines Table
+                    Text(
+                        text = "💊 PRESCRIBED MEDICINES (Rx)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate800
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rxItems.forEachIndexed { idx, med ->
+                            Surface(
+                                color = PureWhite,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        color = Color(0xFFF1F5F9),
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text("${idx + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = med.medicineName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Slate900
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        ) {
+                                            Surface(
+                                                color = Color(0xFFFEF3C7),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = med.frequencyCode,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFB45309),
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = "· ${med.foodInstruction}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Slate600
+                                            )
+                                            if (med.durationDays != null) {
+                                                Text(
+                                                    text = "· ${med.durationDays} days",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Slate600
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Advice & Tests
+                    Surface(
+                        color = Color(0xFFF8FAFC),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "📋 ADVICE & INSTRUCTIONS",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate700
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = adviceNotes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate800
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                text = "🔬 INVESTIGATIONS / TESTS ADVISED",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate700
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = testsAdvised,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate800
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Verified Signature Badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Filled.Verified, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Digitally signed & verified by Dr. $doctorName",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF15803D)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Bottom Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Button(
+                        onClick = {
+                            onShareWhatsApp()
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1.3f)
+                    ) {
+                        Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share via WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

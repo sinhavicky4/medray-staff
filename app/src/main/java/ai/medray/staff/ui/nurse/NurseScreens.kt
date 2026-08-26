@@ -50,8 +50,10 @@ import java.time.format.DateTimeFormatter
 fun NurseHomeScreen(
     queue: List<QueueEntry>,
     searchQuery: String,
+    userName: String? = null,
     onSearchChange: (String) -> Unit,
     onRecordVitalsClick: (QueueEntry) -> Unit,
+    onViewPrescriptionClick: (QueueEntry) -> Unit = {},
     onScanDocumentClick: (QueueEntry) -> Unit,
     onStatusChange: (QueueEntry, QueueStatus) -> Unit,
     modifier: Modifier = Modifier
@@ -118,8 +120,9 @@ fun NurseHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    val displayName = userName?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "Nurse" } ?: "Nurse"
                     Text(
-                        text = "$greeting, Nurse 👋",
+                        text = "$greeting, $displayName 👋",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Slate900
@@ -342,6 +345,7 @@ fun NurseHomeScreen(
                 NursePatientCard(
                     entry = entry,
                     onRecordVitalsClick = { onRecordVitalsClick(entry) },
+                    onViewPrescriptionClick = { onViewPrescriptionClick(entry) },
                     onScanDocumentClick = { onScanDocumentClick(entry) },
                     onMarkArrived = { onStatusChange(entry, QueueStatus.ARRIVED) }
                 )
@@ -354,6 +358,7 @@ fun NurseHomeScreen(
 fun NursePatientCard(
     entry: QueueEntry,
     onRecordVitalsClick: () -> Unit,
+    onViewPrescriptionClick: () -> Unit = {},
     onScanDocumentClick: () -> Unit,
     onMarkArrived: () -> Unit
 ) {
@@ -535,20 +540,34 @@ fun NursePatientCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = onRecordVitalsClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (entry.vitals.hasAnyReading()) "Edit Vitals" else "Record Vitals",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (entry.status == QueueStatus.COMPLETED) {
+                    Button(
+                        onClick = onViewPrescriptionClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("View Rx", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = onRecordVitalsClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (entry.vitals.hasAnyReading()) "Edit Vitals" else "Record Vitals",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 OutlinedButton(
