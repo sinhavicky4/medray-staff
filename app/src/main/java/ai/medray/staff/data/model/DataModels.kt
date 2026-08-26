@@ -3,6 +3,7 @@ package ai.medray.staff.data.model
 import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -10,6 +11,40 @@ import java.util.Locale
 
 private val ISO_TIME_LOCAL_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+
+private val ISO_DATE_TIME_LOCAL_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+
+/** Same conversion as [formatIsoTimeLocal], but including the date — for a payments ledger. */
+fun formatIsoDateTimeLocal(iso: String?): String {
+    if (iso.isNullOrBlank()) return iso ?: ""
+    return try {
+        ISO_DATE_TIME_LOCAL_FORMATTER.format(Instant.parse(iso))
+    } catch (_: DateTimeParseException) {
+        iso
+    }
+}
+
+private val DATE_ONLY_DISPLAY_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+
+/**
+ * Formats a date-only value (e.g. Patient.dob, "1994-12-11") or a full ISO
+ * instant for display — tries plain LocalDate first since a DOB has no time
+ * component to convert, falling back to an instant parse for any field that
+ * does carry one.
+ */
+fun formatDateDisplay(iso: String?): String {
+    if (iso.isNullOrBlank()) return iso ?: ""
+    return try {
+        DATE_ONLY_DISPLAY_FORMATTER.format(LocalDate.parse(iso.take(10)))
+    } catch (_: DateTimeParseException) {
+        try {
+            DATE_ONLY_DISPLAY_FORMATTER.format(Instant.parse(iso).atZone(ZoneId.systemDefault()).toLocalDate())
+        } catch (_: DateTimeParseException) {
+            iso
+        }
+    }
+}
 
 /**
  * Formats a server ISO-8601 UTC instant (e.g. "2026-08-26T07:18:00.000Z")

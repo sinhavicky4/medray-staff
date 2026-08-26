@@ -39,11 +39,13 @@ import ai.medray.staff.ui.common.*
 import ai.medray.staff.ui.nurse.FastVitalsEntryDialog
 import ai.medray.staff.ui.nurse.NurseHomeScreen
 import ai.medray.staff.ui.patients.PatientsScreen
+import ai.medray.staff.ui.patients.PatientDetailsDialog
 import ai.medray.staff.ui.profile.ProfileScreen
 import ai.medray.staff.ui.reception.AddToQueueForPatientDialog
 import ai.medray.staff.ui.reception.ReceptionHomeScreen
 import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
+import ai.medray.staff.ui.selfcheckins.AssignSelfCheckInDialog
 import kotlinx.coroutines.launch
 
 
@@ -388,6 +390,13 @@ fun StaffAppNavHost(
     var showAddToQueueDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
     var upiModalBusy by remember { mutableStateOf(false) }
+    var invoiceDetailTarget by remember { mutableStateOf<Invoice?>(null) }
+    var invoiceShareBusyChannel by remember { mutableStateOf<String?>(null) }
+    var assignSelfCheckInTarget by remember { mutableStateOf<SelfCheckIn?>(null) }
+    var assignSelfCheckInBusy by remember { mutableStateOf(false) }
+    var patientDetailTarget by remember { mutableStateOf<Patient?>(null) }
+    var patientDetailVisits by remember { mutableStateOf<List<Visit>>(emptyList()) }
+    var patientDetailVisitsLoading by remember { mutableStateOf(false) }
 
 // Initial auth check handled seamlessly in SplashScreen
 
@@ -765,7 +774,14 @@ fun StaffAppNavHost(
                             }
                         },
                         onPatientClick = { patient ->
-                            Toast.makeText(context, "Patient: ${patient.fullName} (UHID: ${patient.uhid})", Toast.LENGTH_SHORT).show()
+                            patientDetailTarget = patient
+                            patientDetailVisits = emptyList()
+                            patientDetailVisitsLoading = true
+                            coroutineScope.launch {
+                                val res = visitRepo.getPatientVisits(patient.id)
+                                patientDetailVisits = res.getOrDefault(emptyList())
+                                patientDetailVisitsLoading = false
+                            }
                         },
                         onRegisterPatientClick = { showWalkInDialog = true },
                         onAddToQueueClick = { patient ->
@@ -824,7 +840,8 @@ fun StaffAppNavHost(
                                     invoiceId = invoice.id
                                 )
                             }
-                        }
+                        },
+                        onInvoiceClick = { invoice -> invoiceDetailTarget = invoice }
                     )
                 }
 
@@ -835,7 +852,7 @@ fun StaffAppNavHost(
                         isRefreshing = isRefreshing,
                         onRefresh = { refreshAllData() },
                         onAssignClick = { checkIn ->
-                            showWalkInDialog = true
+                            assignSelfCheckInTarget = checkIn
                         }
                     )
                 }
@@ -1028,6 +1045,81 @@ fun StaffAppNavHost(
                         }
                     }
                 }
+            }
+        )
+    }
+
+    invoiceDetailTarget?.let { invoice ->
+        InvoiceDetailDialog(
+            invoice = invoice,
+            busyChannel = invoiceShareBusyChannel,
+            onDismiss = { invoiceDetailTarget = null },
+            onShareWhatsApp = {
+                if (invoiceShareBusyChannel == null) {
+                    invoiceShareBusyChannel = "whatsapp"
+                    coroutineScope.launch {
+                        val res = billingRepo.shareInvoice(invoice.id, "whatsapp")
+                        invoiceShareBusyChannel = null
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "Invoice sent to patient's WhatsApp!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to send WhatsApp invoice", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            },
+            onShareEmail = {
+                if (invoiceShareBusyChannel == null) {
+                    invoiceShareBusyChannel = "email"
+                    coroutineScope.launch {
+                        val res = billingRepo.shareInvoice(invoice.id, "email")
+                        invoiceShareBusyChannel = null
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "Invoice emailed to patient!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to send invoice email", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    assignSelfCheckInTarget?.let { checkIn ->
+        AssignSelfCheckInDialog(
+            checkIn = checkIn,
+            doctors = doctors,
+            busy = assignSelfCheckInBusy,
+            onDismiss = { if (!assignSelfCheckInBusy) assignSelfCheckInTarget = null },
+            onConfirm = { doctorId ->
+                if (!assignSelfCheckInBusy) {
+                    assignSelfCheckInBusy = true
+                    coroutineScope.launch {
+                        val res = selfCheckInRepo.assign(id = checkIn.id, doctorId = doctorId)
+                        assignSelfCheckInBusy = false
+                        assignSelfCheckInTarget = null
+                        if (res.isSuccess) {
+                            refreshAllData()
+                            Toast.makeText(context, "${checkIn.patient?.fullName ?: "Patient"} added to Dr.'s queue! Token issued.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to assign doctor", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    patientDetailTarget?.let { patient ->
+        PatientDetailsDialog(
+            patient = patient,
+            visits = patientDetailVisits,
+            visitsLoading = patientDetailVisitsLoading,
+            onDismiss = { patientDetailTarget = null },
+            onAddToQueueClick = {
+                patientDetailTarget = null
+                selectedPatientForDirectQueue = patient
+                showAddToQueueDialog = true
             }
         )
     }

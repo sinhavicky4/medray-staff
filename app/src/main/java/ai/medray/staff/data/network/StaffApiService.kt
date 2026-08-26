@@ -115,6 +115,15 @@ data class RecordPaymentRequest(
     val note: String? = null
 )
 
+data class ShareInvoiceRequest(
+    val channel: String
+)
+
+data class ShareInvoiceResponse(
+    val success: Boolean,
+    val messageId: String? = null
+)
+
 // Pre-visit fee collection — before a doctor has opened this patient's
 // chart, so no Invoice exists yet to record an ordinary payment against.
 // See AdvancePayment (api/prisma/schema.prisma) and POST
@@ -286,7 +295,10 @@ interface StaffApiService {
     ): Response<List<Invoice>>
 
     @GET("invoices/{id}")
-    suspend fun getInvoice(@Path("id") id: String): Response<Invoice>
+    suspend fun getInvoice(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<Invoice>
 
     @POST("billing")
     suspend fun createInvoice(
@@ -300,6 +312,13 @@ interface StaffApiService {
         @Body req: RecordPaymentRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<Invoice>
+
+    @POST("invoices/{id}/share")
+    suspend fun shareInvoice(
+        @Path("id") id: String,
+        @Body req: ShareInvoiceRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<ShareInvoiceResponse>
 
     // Visits & Prescriptions
     @GET("visits")
