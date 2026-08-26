@@ -1,3 +1,7 @@
+# MedRay Staff Version 0.4.0 Release Notes
+
+- **🤖 AI Chat Assistant**: New "Chat Assistant" screen (accessible from the menu for clinics with it enabled) — ask it to register a patient, add someone to the queue, record vitals, or book an appointment, review what it proposes, and confirm before anything actually happens.
+
 # MedRay Staff Version 0.3.2 Release Notes
 
 - **🧾 Invoice Detail & Send Receipt**: Tapping an invoice in Billing now opens a full detail view — line items, totals, payment history — with one-tap Send on WhatsApp / Send via Email, matching the web portal.
