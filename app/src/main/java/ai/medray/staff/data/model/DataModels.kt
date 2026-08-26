@@ -240,8 +240,8 @@ data class Payment(
     val id: String,
     val invoiceId: String,
     val amount: Double,
-    val paymentMethod: PaymentMethod,
-    val transactionRef: String? = null,
+    val method: PaymentMethod,
+    val note: String? = null,
     val recordedAt: String
 ) : Serializable
 

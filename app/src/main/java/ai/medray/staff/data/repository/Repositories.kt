@@ -503,8 +503,8 @@ class BillingRepository(private val context: Context) {
         try {
             val req = RecordPaymentRequest(
                 amount = amount,
-                paymentMethod = paymentMethod,
-                transactionRef = transactionRef
+                method = paymentMethod,
+                note = transactionRef
             )
             val res = api.recordPayment(id = invoiceId, req = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {

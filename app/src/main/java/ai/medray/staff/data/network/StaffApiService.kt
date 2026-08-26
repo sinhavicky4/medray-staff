@@ -111,8 +111,8 @@ data class CreateInvoiceRequest(
 
 data class RecordPaymentRequest(
     val amount: Double,
-    val paymentMethod: PaymentMethod,
-    val transactionRef: String? = null
+    val method: PaymentMethod,
+    val note: String? = null
 )
 
 interface StaffApiService {
@@ -255,14 +255,20 @@ interface StaffApiService {
     ): Response<QueueEntry>
 
     // Billing
-    @GET("billing")
+    // NOTE: the real server mounts this router at /api/invoices, not
+    // /api/billing — these three paths were fixed to match. createInvoice
+    // below is left pointing at the (nonexistent) old path deliberately:
+    // there is no POST / route for invoices at all server-side — a visit's
+    // invoice is auto-created when a doctor completes the visit — so this
+    // endpoint has nothing to call yet and is out of scope for this fix.
+    @GET("invoices")
     suspend fun listInvoices(
         @Query("patientId") patientId: String? = null,
         @Query("status") status: String? = null,
         @Query("clinicId") clinicId: String? = null
     ): Response<List<Invoice>>
 
-    @GET("billing/{id}")
+    @GET("invoices/{id}")
     suspend fun getInvoice(@Path("id") id: String): Response<Invoice>
 
     @POST("billing")
@@ -271,7 +277,7 @@ interface StaffApiService {
         @Query("clinicId") clinicId: String? = null
     ): Response<Invoice>
 
-    @POST("billing/{id}/payments")
+    @POST("invoices/{id}/payments")
     suspend fun recordPayment(
         @Path("id") id: String,
         @Body req: RecordPaymentRequest,

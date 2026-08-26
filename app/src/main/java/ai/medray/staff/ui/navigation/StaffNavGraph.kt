@@ -313,6 +313,7 @@ data class UpiPaymentModalData(
     val payeeName: String,
     val amount: Double,
     val invoiceNumber: String,
+    val invoiceId: String? = null,
     val queueEntryId: String? = null,
     val patientId: String? = null,
     val doctorId: String? = null,
@@ -814,8 +815,11 @@ fun StaffAppNavHost(
                                 upiModalData = UpiPaymentModalData(
                                     payeeVpa = configuredUpiId,
                                     payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
-                                    amount = invoice.total,
-                                    invoiceNumber = invoice.invoiceNumber
+                                    // Not invoice.total — a partially-paid invoice must only
+                                    // collect what's still owed, not re-charge the full amount.
+                                    amount = invoice.balanceDue,
+                                    invoiceNumber = invoice.invoiceNumber,
+                                    invoiceId = invoice.id
                                 )
                             }
                         }
@@ -974,6 +978,25 @@ fun StaffAppNavHost(
             onMarkPaid = {
                 coroutineScope.launch {
                     val invoiceAmount = data.amount
+                    // Existing invoice (Billing screen's Collect Payment) — record the
+                    // payment against it directly and only report success if the server
+                    // actually confirms it, instead of always showing the success toast.
+                    if (data.invoiceId != null) {
+                        val paymentRes = billingRepo.recordPayment(
+                            invoiceId = data.invoiceId,
+                            amount = invoiceAmount,
+                            paymentMethod = PaymentMethod.UPI,
+                            transactionRef = "UPI-${data.invoiceNumber}"
+                        )
+                        upiModalData = null
+                        if (paymentRes.isSuccess) {
+                            refreshAllData()
+                            Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
                     // 1. Create formal invoice in billing ledger if patientId exists
                     if (data.patientId != null) {
                         val createRes = billingRepo.createInvoice(
