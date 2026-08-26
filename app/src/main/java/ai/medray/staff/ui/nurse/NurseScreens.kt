@@ -37,6 +37,7 @@ import ai.medray.staff.data.model.QueueStatus
 import ai.medray.staff.data.model.Vitals
 import ai.medray.staff.domain.VitalsSeverity
 import ai.medray.staff.domain.VitalsValidator
+import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QueueStatusBadge
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
@@ -51,6 +52,8 @@ fun NurseHomeScreen(
     queue: List<QueueEntry>,
     searchQuery: String,
     userName: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onSearchChange: (String) -> Unit,
     onRecordVitalsClick: (QueueEntry) -> Unit,
     onViewPrescriptionClick: (QueueEntry) -> Unit = {},
@@ -105,13 +108,18 @@ fun NurseHomeScreen(
         )
     }
 
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    MedRayPullRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
     ) {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
         // 1. Clinical Header & Shift Status
         item {
             Row(
@@ -352,6 +360,7 @@ fun NurseHomeScreen(
             }
         }
     }
+}
 }
 
 @Composable

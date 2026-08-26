@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import ai.medray.staff.data.model.*
 import ai.medray.staff.ui.common.DynamicUpiQrDialog
+import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QueueStatusBadge
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
@@ -44,6 +45,8 @@ fun ReceptionHomeScreen(
     doctors: List<DoctorSummary>,
     selectedDoctorId: String?,
     userName: String? = null,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onDoctorFilterChange: (String?) -> Unit,
     onNewWalkInClick: () -> Unit,
     onRecordVitalsClick: (QueueEntry) -> Unit,
@@ -102,13 +105,18 @@ fun ReceptionHomeScreen(
         )
     }
 
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    MedRayPullRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
     ) {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
         // 1. Hero Header & Quick Action
         item {
             Row(
@@ -395,6 +403,7 @@ fun ReceptionHomeScreen(
             }
         }
     }
+}
 }
 
 @Composable

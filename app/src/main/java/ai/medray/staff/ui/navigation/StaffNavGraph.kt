@@ -389,26 +389,33 @@ fun StaffAppNavHost(
 
 // Initial auth check handled seamlessly in SplashScreen
 
+    var isRefreshing by remember { mutableStateOf(false) }
+
     // Refresh data coordinator
     fun refreshAllData() {
         coroutineScope.launch {
-            val qRes = queueRepo.refreshQueue()
-            if (qRes.isSuccess) queueEntries = qRes.getOrDefault(emptyList())
+            isRefreshing = true
+            try {
+                val qRes = queueRepo.refreshQueue()
+                if (qRes.isSuccess) queueEntries = qRes.getOrDefault(emptyList())
 
-            val pRes = patientRepo.searchPatients("")
-            if (pRes.isSuccess) patientsList = pRes.getOrDefault(emptyList())
+                val pRes = patientRepo.searchPatients("")
+                if (pRes.isSuccess) patientsList = pRes.getOrDefault(emptyList())
 
-            val aRes = appointmentRepo.listAppointments()
-            if (aRes.isSuccess) appointmentsList = aRes.getOrDefault(emptyList())
+                val aRes = appointmentRepo.listAppointments()
+                if (aRes.isSuccess) appointmentsList = aRes.getOrDefault(emptyList())
 
-            val bRes = billingRepo.listInvoices()
-            if (bRes.isSuccess) invoicesList = bRes.getOrDefault(emptyList())
+                val bRes = billingRepo.listInvoices()
+                if (bRes.isSuccess) invoicesList = bRes.getOrDefault(emptyList())
 
-            val dRes = doctorRepo.listDoctors()
-            if (dRes.isSuccess) doctors = dRes.getOrDefault(doctors)
+                val dRes = doctorRepo.listDoctors()
+                if (dRes.isSuccess) doctors = dRes.getOrDefault(doctors)
 
-            val sRes = selfCheckInRepo.listPending()
-            if (sRes.isSuccess) selfCheckInsList = sRes.getOrDefault(emptyList())
+                val sRes = selfCheckInRepo.listPending()
+                if (sRes.isSuccess) selfCheckInsList = sRes.getOrDefault(emptyList())
+            } finally {
+                isRefreshing = false
+            }
         }
     }
 
@@ -651,6 +658,8 @@ fun StaffAppNavHost(
                             queue = queueEntries,
                             searchQuery = searchQuery,
                             userName = currentUser?.fullName,
+                            isRefreshing = isRefreshing,
+                            onRefresh = { refreshAllData() },
                             onSearchChange = { searchQuery = it },
                             onRecordVitalsClick = { entry -> vitalsTargetEntry = entry },
                             onViewPrescriptionClick = { entry ->
@@ -679,6 +688,8 @@ fun StaffAppNavHost(
                             doctors = doctors,
                             selectedDoctorId = selectedDoctorId,
                             userName = currentUser?.fullName,
+                            isRefreshing = isRefreshing,
+                            onRefresh = { refreshAllData() },
                             onDoctorFilterChange = { selectedDoctorId = it },
                             onNewWalkInClick = { showWalkInDialog = true },
                             onRecordVitalsClick = { entry -> vitalsTargetEntry = entry },
@@ -728,6 +739,8 @@ fun StaffAppNavHost(
                     PatientsScreen(
                         patients = patientsList,
                         searchQuery = searchQuery,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { refreshAllData() },
                         onSearchChange = { query ->
                             searchQuery = query
                             coroutineScope.launch {
@@ -746,6 +759,8 @@ fun StaffAppNavHost(
                 composable(Screen.Appointments.route) {
                     AppointmentsScreen(
                         appointments = appointmentsList,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { refreshAllData() },
                         onCheckInClick = { appt ->
                             coroutineScope.launch {
                                 val res = appointmentRepo.checkIn(appt.id, null)
@@ -763,8 +778,7 @@ fun StaffAppNavHost(
                                     refreshAllData()
                                 }
                             }
-                        },
-                        onRefresh = { refreshAllData() }
+                        }
                     )
                 }
 
@@ -772,6 +786,8 @@ fun StaffAppNavHost(
                 composable(Screen.Billing.route) {
                     BillingScreen(
                         invoices = invoicesList,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { refreshAllData() },
                         onCollectPaymentClick = { invoice ->
                             upiModalData = UpiPaymentModalData(
                                 payeeVpa = currentUser?.clinic?.upiVpa ?: "medray@upi",
@@ -779,8 +795,7 @@ fun StaffAppNavHost(
                                 amount = invoice.total,
                                 invoiceNumber = invoice.invoiceNumber
                             )
-                        },
-                        onRefresh = { refreshAllData() }
+                        }
                     )
                 }
 
@@ -788,10 +803,11 @@ fun StaffAppNavHost(
                 composable(Screen.SelfCheckIns.route) {
                     SelfCheckInsScreen(
                         checkIns = selfCheckInsList,
+                        isRefreshing = isRefreshing,
+                        onRefresh = { refreshAllData() },
                         onAssignClick = { checkIn ->
                             showWalkInDialog = true
-                        },
-                        onRefresh = { refreshAllData() }
+                        }
                     )
                 }
 

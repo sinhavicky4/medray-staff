@@ -16,41 +16,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.SelfCheckIn
+import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.theme.*
 
 @Composable
 fun SelfCheckInsScreen(
     checkIns: List<SelfCheckIn>,
     onAssignClick: (SelfCheckIn) -> Unit,
-    onRefresh: () -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.fillMaxSize().background(Slate50).padding(16.dp)
+    MedRayPullRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize().background(Slate50)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
         ) {
-            Column {
-                Text(
-                    text = "Self Check-In Kiosk",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate900
-                )
-                Text(
-                    text = "Patient QR Arrivals · ${checkIns.size} Pending",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Slate500
-                )
-            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "Self Check-In Kiosk",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "Patient QR Arrivals · ${checkIns.size} Pending",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate500
+                    )
+                }
 
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MedRayBluePrimary)
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MedRayBluePrimary)
+                }
             }
-        }
 
         if (checkIns.isEmpty()) {
             Box(
@@ -152,4 +159,5 @@ fun SelfCheckInsScreen(
             }
         }
     }
+}
 }

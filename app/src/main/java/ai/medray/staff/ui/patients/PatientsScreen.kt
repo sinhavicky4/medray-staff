@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import ai.medray.staff.data.model.Patient
+import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
 import ai.medray.staff.ui.theme.*
@@ -38,6 +39,8 @@ fun PatientsScreen(
     onSearchChange: (String) -> Unit,
     onPatientClick: (Patient) -> Unit,
     onRegisterPatientClick: () -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedFilter by remember { mutableStateOf(PatientGenderFilter.ALL) }
@@ -65,13 +68,18 @@ fun PatientsScreen(
         }
     }
 
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    MedRayPullRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
     ) {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
         // 1. Header & Register Action
         item {
             Row(
@@ -282,6 +290,7 @@ fun PatientsScreen(
             }
         }
     }
+}
 
     // Patient Details Modal Dialog
     selectedPatientForDetails?.let { patient ->

@@ -36,6 +36,7 @@ import ai.medray.staff.data.model.Visit
 import ai.medray.staff.data.model.QueueStatus
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.User
 import ai.medray.staff.data.model.Vitals
@@ -910,5 +911,40 @@ fun PrescriptionViewerDialog(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MedRayPullRefreshBox(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val state = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    if (state.isRefreshing) {
+        LaunchedEffect(true) {
+            onRefresh()
+        }
+    }
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            state.startRefresh()
+        } else {
+            state.endRefresh()
+        }
+    }
+
+    Box(
+        modifier = modifier.nestedScroll(state.nestedScrollConnection)
+    ) {
+        content()
+        androidx.compose.material3.pulltorefresh.PullToRefreshContainer(
+            state = state,
+            modifier = Modifier.align(Alignment.TopCenter),
+            containerColor = PureWhite,
+            contentColor = MedRayBluePrimary
+        )
     }
 }

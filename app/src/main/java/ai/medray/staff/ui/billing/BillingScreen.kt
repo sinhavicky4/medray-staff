@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.Invoice
 import ai.medray.staff.data.model.InvoiceStatus
+import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
 import ai.medray.staff.ui.theme.*
@@ -33,7 +34,8 @@ import ai.medray.staff.ui.theme.*
 fun BillingScreen(
     invoices: List<Invoice>,
     onCollectPaymentClick: (Invoice) -> Unit,
-    onRefresh: () -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -61,13 +63,18 @@ fun BillingScreen(
         }
     }
 
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    MedRayPullRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .background(Slate50)
     ) {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
         // 1. Header & Refresh
         item {
             Row(
@@ -234,6 +241,7 @@ fun BillingScreen(
             }
         }
     }
+}
 }
 
 @Composable
