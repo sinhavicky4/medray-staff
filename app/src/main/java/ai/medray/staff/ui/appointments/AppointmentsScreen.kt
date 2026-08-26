@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.Appointment
 import ai.medray.staff.data.model.AppointmentStatus
+import ai.medray.staff.data.model.formatIsoTimeLocal
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
@@ -313,21 +314,7 @@ fun AppointmentCard(
         else (patient?.fullName ?: "P").take(2).uppercase()
     }
 
-    val timeStr = remember(appointment.scheduledAt) {
-        try {
-            if (appointment.scheduledAt.contains("T")) {
-                val timePart = appointment.scheduledAt.substringAfter("T").substringBefore("Z").substringBefore("+").substringBefore(".")
-                val parts = timePart.split(":")
-                val hour = parts[0].toInt()
-                val min = parts[1]
-                val ampm = if (hour >= 12) "PM" else "AM"
-                val h12 = if (hour % 12 == 0) 12 else hour % 12
-                "$h12:$min $ampm"
-            } else appointment.scheduledAt.takeLast(8).take(5)
-        } catch (_: Exception) {
-            "Today"
-        }
-    }
+    val timeStr = remember(appointment.scheduledAt) { formatIsoTimeLocal(appointment.scheduledAt) }
 
     val (statusBg, statusText, statusDot) = when (appointment.status) {
         AppointmentStatus.CHECKED_IN -> Triple(Color(0xFFDCFCE7), Color(0xFF16A34A), Color(0xFF22C55E))
