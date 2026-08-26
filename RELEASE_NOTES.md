@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.3.1 Release Notes
+
+- **🛠️ Fixed Billing Invoice "null" Text**: Invoice numbers were rendering as the literal text "null" throughout Billing — the fields the app expected the server to send never actually existed. Invoice numbers are now correctly derived from the invoice ID, matching the web app.
+- **🔄 Fixed Queue "Collect Payment" Silently Doing Nothing**: The UPI payment dialog was closing itself before the payment was actually confirmed by the server, so tapping Mark Paid looked like it did nothing. The dialog now stays open with a "Saving…" state until the payment is confirmed, and the queue card shows a "✓ Collected" badge once payment is received.
+
 # MedRay Staff Version 0.3.0 Release Notes
 
 - **💰 Pre-Visit Fee Collection**: Front desk can now collect a patient's consultation fee right at check-in, before the doctor has seen them — automatically reconciled into the real invoice once the visit completes, so a prepaid patient's invoice lands already marked Paid.
