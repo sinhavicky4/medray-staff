@@ -115,6 +115,16 @@ data class RecordPaymentRequest(
     val note: String? = null
 )
 
+// Pre-visit fee collection — before a doctor has opened this patient's
+// chart, so no Invoice exists yet to record an ordinary payment against.
+// See AdvancePayment (api/prisma/schema.prisma) and POST
+// /api/queue/:id/advance-payment.
+data class CollectAdvancePaymentRequest(
+    val amount: Double,
+    val method: PaymentMethod,
+    val note: String? = null
+)
+
 interface StaffApiService {
 
     // Auth
@@ -167,6 +177,13 @@ interface StaffApiService {
     suspend fun updateQueueVitals(
         @Path("id") id: String,
         @Body req: UpdateVitalsRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<QueueEntry>
+
+    @POST("queue/{id}/advance-payment")
+    suspend fun collectAdvancePayment(
+        @Path("id") id: String,
+        @Body req: CollectAdvancePaymentRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<QueueEntry>
 

@@ -107,7 +107,8 @@ data class User(
 data class DoctorSummary(
     val id: String,
     val fullName: String,
-    val specialization: String? = null
+    val specialization: String? = null,
+    val consultationFee: Double? = null
 ) : Serializable
 
 data class Patient(
@@ -171,7 +172,11 @@ data class QueueEntry(
     val vitalsWeightKg: Double? = null,
     val vitalsHeightCm: Double? = null,
     val patient: Patient? = null,
-    val doctor: DoctorSummary? = null
+    val doctor: DoctorSummary? = null,
+    // Sum of AdvancePayment rows collected before a doctor opened this
+    // patient's chart, not yet folded into a real Invoice — see
+    // completeVisitAndInvoice (api/src/routes/visits.ts).
+    val advancePaidTotal: Double = 0.0
 ) : Serializable {
     val vitals: Vitals
         get() = Vitals(
