@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -664,18 +665,27 @@ fun ReceptionPatientCard(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WalkInRegisterDialog(
+fun AddToQueueForPatientDialog(
+    patient: Patient,
     doctors: List<DoctorSummary>,
     onDismiss: () -> Unit,
-    onRegister: (patientName: String, phone: String, doctorId: String, complaint: String, age: Int?, gender: String) -> Unit
+    onAddToQueue: (doctorId: String, complaint: String, vitals: Vitals?) -> Unit
 ) {
-    var fullName by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("MALE") }
     var selectedDoctorId by remember { mutableStateOf(doctors.firstOrNull()?.id ?: "") }
     var chiefComplaint by remember { mutableStateOf("") }
     var doctorDropdownExpanded by remember { mutableStateOf(false) }
+    var showVitalsFields by remember { mutableStateOf(false) }
+
+    var bp by remember { mutableStateOf("") }
+    var temp by remember { mutableStateOf("") }
+    var pulse by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+
+    val initials = remember(patient.fullName) {
+        val names = patient.fullName.trim().split(" ")
+        if (names.size >= 2) "${names[0].take(1)}${names[1].take(1)}".uppercase()
+        else patient.fullName.take(2).uppercase()
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -686,7 +696,12 @@ fun WalkInRegisterDialog(
                 .fillMaxWidth()
                 .padding(4.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
@@ -694,13 +709,13 @@ fun WalkInRegisterDialog(
                 ) {
                     Column {
                         Text(
-                            text = "New Walk-In Patient",
+                            text = "Add to Doctor's Queue",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Slate900
                         )
                         Text(
-                            text = "Instant OPD token generation & registration",
+                            text = "Assign consulting doctor & issue token",
                             style = MaterialTheme.typography.bodySmall,
                             color = Slate500
                         )
@@ -712,62 +727,52 @@ fun WalkInRegisterDialog(
 
                 HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = fullName,
-                        onValueChange = { fullName = it },
-                        label = { Text("Patient Full Name *") },
-                        placeholder = { Text("e.g. Rahul Sharma") },
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = phone,
-                        onValueChange = { if (it.length <= 10) phone = it },
-                        label = { Text("Mobile Number (WhatsApp) *") },
-                        placeholder = { Text("10-digit mobile number") },
-                        leadingIcon = { Text("🇮🇳 +91 ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Slate600, modifier = Modifier.padding(start = 12.dp)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = age,
-                            onValueChange = { if (it.length <= 3) age = it },
-                            label = { Text("Age") },
-                            placeholder = { Text("e.g. 35") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = RoundedCornerShape(10.dp),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // Gender Selector
-                        Column(modifier = Modifier.weight(1.5f)) {
-                            Text("Gender", fontSize = 11.sp, color = Slate600)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                listOf("MALE" to "M", "FEMALE" to "F", "OTHER" to "O").forEach { (g, label) ->
-                                    FilterChip(
-                                        selected = gender == g,
-                                        onClick = { gender = g },
-                                        label = { Text(label, fontSize = 11.sp) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MedRayBluePrimary,
-                                            selectedLabelColor = PureWhite
-                                        ),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                }
-                            }
+                // Patient Info Card
+                Surface(
+                    color = Color(0xFFF8FAFC),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFEFF6FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = initials,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MedRayBluePrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = patient.fullName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate900
+                            )
+                            Text(
+                                text = "UHID: ${patient.uhid} · 📞 +91 ${patient.phone ?: "N/A"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate500
+                            )
                         }
                     }
+                }
 
-                    // Doctor Selector Dropdown
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Consulting Doctor Dropdown
                     ExposedDropdownMenuBox(
                         expanded = doctorDropdownExpanded,
                         onExpandedChange = { doctorDropdownExpanded = it },
@@ -799,15 +804,86 @@ fun WalkInRegisterDialog(
                         }
                     }
 
+                    // Chief Complaint
                     OutlinedTextField(
                         value = chiefComplaint,
                         onValueChange = { chiefComplaint = it },
                         label = { Text("Chief Complaint") },
-                        placeholder = { Text("e.g. Fever, headache for 2 days") },
+                        placeholder = { Text("e.g. Routine Consultation, Fever, Follow-up") },
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Optional Vitals Toggle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showVitalsFields = !showVitalsFields }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Favorite, contentDescription = null, tint = MedRayBluePrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pre-Visit Vitals (Optional)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                        }
+                        Text(
+                            text = if (showVitalsFields) "Hide ▲" else "Add ▼",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedRayBluePrimary
+                        )
+                    }
+
+                    if (showVitalsFields) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = bp,
+                                    onValueChange = { bp = it },
+                                    label = { Text("BP (mmHg)") },
+                                    placeholder = { Text("120/80") },
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = temp,
+                                    onValueChange = { temp = it },
+                                    label = { Text("Temp (°F)") },
+                                    placeholder = { Text("98.6") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = pulse,
+                                    onValueChange = { pulse = it },
+                                    label = { Text("Pulse (bpm)") },
+                                    placeholder = { Text("72") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = weight,
+                                    onValueChange = { weight = it },
+                                    label = { Text("Weight (kg)") },
+                                    placeholder = { Text("65.0") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -826,22 +902,411 @@ fun WalkInRegisterDialog(
 
                     Button(
                         onClick = {
-                            if (fullName.isNotBlank() && phone.isNotBlank()) {
-                                onRegister(fullName, phone, selectedDoctorId, chiefComplaint, age.toIntOrNull(), gender)
+                            if (selectedDoctorId.isNotBlank()) {
+                                val vitals = if (bp.isNotBlank() || temp.isNotBlank() || pulse.isNotBlank() || weight.isNotBlank()) {
+                                    Vitals(
+                                        vitalsBp = bp.ifBlank { null },
+                                        vitalsTemperatureF = temp.toDoubleOrNull(),
+                                        vitalsPulseBpm = pulse.toIntOrNull(),
+                                        vitalsWeightKg = weight.toDoubleOrNull()
+                                    )
+                                } else null
+                                val finalComplaint = chiefComplaint.ifBlank { "Routine Consultation" }
+                                onAddToQueue(selectedDoctorId, finalComplaint, vitals)
                                 onDismiss()
                             }
                         },
-                        enabled = fullName.isNotBlank() && phone.length >= 10,
+                        enabled = selectedDoctorId.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f)
+                        modifier = Modifier.weight(1.3f)
                     ) {
                         Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Generate Token", fontWeight = FontWeight.Bold)
+                        Text("Add to Queue", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WalkInRegisterDialog(
+    doctors: List<DoctorSummary>,
+    existingPatients: List<Patient> = emptyList(),
+    onDismiss: () -> Unit,
+    onRegister: (patientName: String, phone: String, doctorId: String, complaint: String, age: Int?, gender: String) -> Unit,
+    onAddExisting: (patient: Patient, doctorId: String, complaint: String) -> Unit = { _, _, _ -> }
+) {
+    var isExistingPatientMode by remember { mutableStateOf(false) }
+    var selectedExistingPatient by remember { mutableStateOf<Patient?>(null) }
+    var patientSearchQuery by remember { mutableStateOf("") }
+
+    var fullName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var age by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("MALE") }
+    var selectedDoctorId by remember { mutableStateOf(doctors.firstOrNull()?.id ?: "") }
+    var chiefComplaint by remember { mutableStateOf("") }
+    var doctorDropdownExpanded by remember { mutableStateOf(false) }
+
+    val filteredPatients = remember(patientSearchQuery, existingPatients) {
+        if (patientSearchQuery.isBlank()) existingPatients.take(5)
+        else {
+            val q = patientSearchQuery.trim().lowercase()
+            existingPatients.filter {
+                it.fullName.lowercase().contains(q) ||
+                        it.phone?.contains(q) == true ||
+                        it.uhid.lowercase().contains(q)
+            }.take(6)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = PureWhite,
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        Text(
+                            text = if (isExistingPatientMode) "Add Existing Patient" else "New Walk-In Patient",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                        Text(
+                            text = "Instant OPD token generation & registration",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Slate500
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate500)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Mode Selector Tabs
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Slate100, RoundedCornerShape(10.dp))
+                        .padding(3.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (!isExistingPatientMode) PureWhite else Color.Transparent)
+                            .clickable { isExistingPatientMode = false }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "New Patient",
+                            fontSize = 12.sp,
+                            fontWeight = if (!isExistingPatientMode) FontWeight.Bold else FontWeight.Normal,
+                            color = if (!isExistingPatientMode) MedRayBluePrimary else Slate600
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isExistingPatientMode) PureWhite else Color.Transparent)
+                            .clickable { isExistingPatientMode = true }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Existing Patient",
+                            fontSize = 12.sp,
+                            fontWeight = if (isExistingPatientMode) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isExistingPatientMode) MedRayBluePrimary else Slate600
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
+
+                if (isExistingPatientMode) {
+                    // Existing Patient Lookup Flow
+                    if (selectedExistingPatient == null) {
+                        OutlinedTextField(
+                            value = patientSearchQuery,
+                            onValueChange = { patientSearchQuery = it },
+                            placeholder = { Text("Search by name, phone, or UHID…", fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MedRayBluePrimary, modifier = Modifier.size(18.dp)) },
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (filteredPatients.isEmpty()) {
+                            Text(
+                                text = "No registered patients match search.",
+                                fontSize = 12.sp,
+                                color = Slate400,
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                filteredPatients.forEach { p ->
+                                    Surface(
+                                        color = Slate50,
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { selectedExistingPatient = p }
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.padding(10.dp)
+                                        ) {
+                                            Column {
+                                                Text(text = p.fullName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Slate900)
+                                                Text(text = "UHID: ${p.uhid} · 📞 +91 ${p.phone ?: "N/A"}", fontSize = 11.sp, color = Slate500)
+                                            }
+                                            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Slate400, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Selected Patient Banner
+                        Surface(
+                            color = Color(0xFFEFF6FF),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(10.dp)
+                            ) {
+                                Column {
+                                    Text(text = selectedExistingPatient!!.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MedRayBluePrimary)
+                                    Text(text = "UHID: ${selectedExistingPatient!!.uhid} · 📞 +91 ${selectedExistingPatient!!.phone ?: "N/A"}", fontSize = 11.sp, color = Slate600)
+                                }
+                                TextButton(onClick = { selectedExistingPatient = null }) {
+                                    Text("Change", fontSize = 12.sp, color = MedRayBluePrimary)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Doctor Selector Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = doctorDropdownExpanded,
+                            onExpandedChange = { doctorDropdownExpanded = it },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val selectedDocName = doctors.find { it.id == selectedDoctorId }?.fullName ?: "Select Doctor"
+                            OutlinedTextField(
+                                value = "Dr. $selectedDocName",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Consulting Doctor *") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = doctorDropdownExpanded) },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = doctorDropdownExpanded,
+                                onDismissRequest = { doctorDropdownExpanded = false }
+                            ) {
+                                doctors.forEach { doc ->
+                                    DropdownMenuItem(
+                                        text = { Text("Dr. ${doc.fullName}") },
+                                        onClick = {
+                                            selectedDoctorId = doc.id
+                                            doctorDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = chiefComplaint,
+                            onValueChange = { chiefComplaint = it },
+                            label = { Text("Chief Complaint") },
+                            placeholder = { Text("e.g. Follow-up, Fever, Routine Consultation") },
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    // New Patient Registration Form
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = fullName,
+                            onValueChange = { fullName = it },
+                            label = { Text("Patient Full Name *") },
+                            placeholder = { Text("e.g. Rahul Sharma") },
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { if (it.length <= 10) phone = it },
+                            label = { Text("Mobile Number (WhatsApp) *") },
+                            placeholder = { Text("10-digit mobile number") },
+                            leadingIcon = { Text("🇮🇳 +91 ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Slate600, modifier = Modifier.padding(start = 12.dp)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = age,
+                                onValueChange = { if (it.length <= 3) age = it },
+                                label = { Text("Age") },
+                                placeholder = { Text("e.g. 35") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Gender Selector
+                            Column(modifier = Modifier.weight(1.5f)) {
+                                Text("Gender", fontSize = 11.sp, color = Slate600)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    listOf("MALE" to "M", "FEMALE" to "F", "OTHER" to "O").forEach { (g, label) ->
+                                        FilterChip(
+                                            selected = gender == g,
+                                            onClick = { gender = g },
+                                            label = { Text(label, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MedRayBluePrimary,
+                                                selectedLabelColor = PureWhite
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Doctor Selector Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = doctorDropdownExpanded,
+                            onExpandedChange = { doctorDropdownExpanded = it },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val selectedDocName = doctors.find { it.id == selectedDoctorId }?.fullName ?: "Select Doctor"
+                            OutlinedTextField(
+                                value = "Dr. $selectedDocName",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Consulting Doctor *") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = doctorDropdownExpanded) },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = doctorDropdownExpanded,
+                                onDismissRequest = { doctorDropdownExpanded = false }
+                            ) {
+                                doctors.forEach { doc ->
+                                    DropdownMenuItem(
+                                        text = { Text("Dr. ${doc.fullName}") },
+                                        onClick = {
+                                            selectedDoctorId = doc.id
+                                            doctorDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = chiefComplaint,
+                            onValueChange = { chiefComplaint = it },
+                            label = { Text("Chief Complaint") },
+                            placeholder = { Text("e.g. Fever, headache for 2 days") },
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (isExistingPatientMode) {
+                                selectedExistingPatient?.let { p ->
+                                    val complaint = chiefComplaint.ifBlank { "Routine Consultation" }
+                                    onAddExisting(p, selectedDoctorId, complaint)
+                                    onDismiss()
+                                }
+                            } else {
+                                if (fullName.isNotBlank() && phone.isNotBlank()) {
+                                    val complaint = chiefComplaint.ifBlank { "Routine Consultation" }
+                                    onRegister(fullName, phone, selectedDoctorId, complaint, age.toIntOrNull(), gender)
+                                    onDismiss()
+                                }
+                            }
+                        },
+                        enabled = if (isExistingPatientMode) selectedExistingPatient != null && selectedDoctorId.isNotBlank()
+                                  else fullName.isNotBlank() && phone.length >= 10 && selectedDoctorId.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.3f)
+                    ) {
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isExistingPatientMode) "Add to Queue" else "Generate Token", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+

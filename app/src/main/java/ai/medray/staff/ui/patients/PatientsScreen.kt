@@ -39,6 +39,7 @@ fun PatientsScreen(
     onSearchChange: (String) -> Unit,
     onPatientClick: (Patient) -> Unit,
     onRegisterPatientClick: () -> Unit,
+    onAddToQueueClick: (Patient) -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -285,6 +286,9 @@ fun PatientsScreen(
                     onClick = {
                         selectedPatientForDetails = patient
                         onPatientClick(patient)
+                    },
+                    onAddToQueueClick = {
+                        onAddToQueueClick(patient)
                     }
                 )
             }
@@ -296,7 +300,11 @@ fun PatientsScreen(
     selectedPatientForDetails?.let { patient ->
         PatientDetailsDialog(
             patient = patient,
-            onDismiss = { selectedPatientForDetails = null }
+            onDismiss = { selectedPatientForDetails = null },
+            onAddToQueueClick = {
+                selectedPatientForDetails = null
+                onAddToQueueClick(patient)
+            }
         )
     }
 }
@@ -304,7 +312,8 @@ fun PatientsScreen(
 @Composable
 fun PatientCard(
     patient: Patient,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddToQueueClick: () -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -420,12 +429,23 @@ fun PatientCard(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = Slate400,
-                modifier = Modifier.size(20.dp)
-            )
+            // Quick Add to Queue action button
+            IconButton(
+                onClick = onAddToQueueClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color(0xFFEFF6FF),
+                    contentColor = MedRayBluePrimary
+                ),
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            ) {
+                Icon(
+                    Icons.Filled.PersonAdd,
+                    contentDescription = "Add to Queue",
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -436,7 +456,8 @@ fun PatientCard(
 @Composable
 fun PatientDetailsDialog(
     patient: Patient,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAddToQueueClick: () -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -527,13 +548,28 @@ fun PatientDetailsDialog(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                    shape = RoundedCornerShape(10.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Close", fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close")
+                    }
+
+                    Button(
+                        onClick = onAddToQueueClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.4f)
+                    ) {
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add to Queue", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

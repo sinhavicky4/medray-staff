@@ -1,3 +1,10 @@
+# MedRay Staff Version 0.2.0 Release Notes
+
+- **➕ Add Registered Patient to Doctor's Queue**: Staff can now directly add any existing registered patient from the directory to any consulting doctor's queue with instant token generation, doctor selection, chief complaint, and optional vitals.
+- **🔄 Tabbed Walk-In & Existing Patient Registration**: Enhanced Walk-In dialog supporting instant patient lookup & selection as well as new walk-in creation.
+- **📱 Dynamic Clinic UPI ID Integration**: Wired clinic-specific UPI ID (VPA) from web/API into dynamic on-screen QR codes and payment ledger recording.
+- **⬇️ Pull-Down to Refresh**: Added smooth pull-to-refresh swipe gesture across OPD Queue, Patients Directory, and Billing screens.
+
 # MedRay Staff Version 0.1.7 Release Notes
 
 - **🔢 FIFO Queue Ordering & Completed Deprioritization**: OPD queue records are now strictly sorted by First-In, First-Out (FIFO) arrival order with completed and cancelled records automatically pushed to the bottom.
