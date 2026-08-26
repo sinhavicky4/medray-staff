@@ -2,6 +2,33 @@ package ai.medray.staff.data.model
 
 import com.google.gson.annotations.SerializedName
 import java.io.Serializable
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
+
+private val ISO_TIME_LOCAL_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+
+/**
+ * Formats a server ISO-8601 UTC instant (e.g. "2026-08-26T07:18:00.000Z")
+ * as a 12-hour local clock time (e.g. "12:48 PM"). Server timestamps are
+ * always UTC ("Z"-suffixed) — this actually converts to the device's own
+ * timezone rather than reading the UTC digits as if they were already
+ * local, which is what every previous ad-hoc substring parse of these
+ * timestamps in this app silently did. Locale pinned to English so the
+ * AM/PM marker is always "AM"/"PM" regardless of the device's own locale
+ * setting (some locales render "a" as lowercase or non-Latin script).
+ */
+fun formatIsoTimeLocal(iso: String?): String {
+    if (iso.isNullOrBlank()) return iso ?: ""
+    return try {
+        ISO_TIME_LOCAL_FORMATTER.format(Instant.parse(iso))
+    } catch (_: DateTimeParseException) {
+        iso
+    }
+}
 
 enum class UserRole {
     SUPER_ADMIN,
@@ -190,28 +217,7 @@ data class QueueEntry(
         )
 
     val formattedTime: String
-        get() {
-            val raw = createdAt ?: scheduledAt
-            return try {
-                if (raw.contains("T")) {
-                    val timePart = raw.substringAfter("T").substringBefore("Z").substringBefore("+").substringBefore(".")
-                    val parts = timePart.split(":")
-                    if (parts.size >= 2) {
-                        val hour = parts[0].toInt()
-                        val min = parts[1]
-                        val ampm = if (hour >= 12) "PM" else "AM"
-                        val h12 = if (hour % 12 == 0) 12 else hour % 12
-                        "$h12:$min $ampm"
-                    } else raw
-                } else if (raw.contains(":")) {
-                    raw
-                } else {
-                    raw
-                }
-            } catch (_: Exception) {
-                raw
-            }
-        }
+        get() = formatIsoTimeLocal(createdAt ?: scheduledAt)
 
     val addedByDisplay: String
         get() = createdBy?.ifBlank { "Front Desk" } ?: "Front Desk"
