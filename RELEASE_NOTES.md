@@ -1,3 +1,10 @@
+# MedRay Staff Version 0.3.0 Release Notes
+
+- **💰 Pre-Visit Fee Collection**: Front desk can now collect a patient's consultation fee right at check-in, before the doctor has seen them — automatically reconciled into the real invoice once the visit completes, so a prepaid patient's invoice lands already marked Paid.
+- **🛠️ Fixed Billing "Collect Payment"**: The existing-invoice payment flow was silently failing against a wrong API path and field names, always showing a false success toast. Now hits the real endpoint and only reports success once the server actually confirms it.
+- **🔒 Blocked Placeholder UPI Collection**: Both Collect Payment flows no longer fall back to a hardcoded placeholder VPA when a clinic hasn't configured its own UPI ID — collection is blocked with a clear message instead of silently misdirecting payment.
+- **🕐 Fixed Timezone Display**: Queue token times and appointment times were displaying in raw UTC instead of the device's local time (off by +5:30 for India). Now correctly converted to local time.
+
 # MedRay Staff Version 0.2.0 Release Notes
 
 - **➕ Add Registered Patient to Doctor's Queue**: Staff can now directly add any existing registered patient from the directory to any consulting doctor's queue with instant token generation, doctor selection, chief complaint, and optional vitals.
