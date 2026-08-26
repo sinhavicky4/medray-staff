@@ -940,7 +940,9 @@ fun InvoiceDetailDialog(
     busyChannel: String? = null,
     onDismiss: () -> Unit,
     onShareWhatsApp: () -> Unit,
-    onShareEmail: () -> Unit
+    onShareEmail: () -> Unit,
+    onDownloadPdf: () -> Unit = {},
+    onPrint: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val patient = invoice.patient
@@ -1128,6 +1130,32 @@ fun InvoiceDetailDialog(
                             }
                             Text(if (busyChannel == "email") "Sending…" else "Email", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDownloadPdf,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Download PDF", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = onPrint,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Print", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

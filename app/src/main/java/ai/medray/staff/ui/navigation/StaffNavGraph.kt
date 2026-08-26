@@ -46,7 +46,10 @@ import ai.medray.staff.ui.reception.ReceptionHomeScreen
 import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
 import ai.medray.staff.ui.selfcheckins.AssignSelfCheckInDialog
+import ai.medray.staff.domain.InvoicePdfActions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 fun getSampleQueue(): List<QueueEntry> {
@@ -401,6 +404,23 @@ fun StaffAppNavHost(
 // Initial auth check handled seamlessly in SplashScreen
 
     var isRefreshing by remember { mutableStateOf(false) }
+
+    // Shown after any queue-registration action (walk-in, existing-patient
+    // add, self-check-in assign) — surfaces QueueEntry.tokenAlertFailed
+    // instead of leaving a failed WhatsApp token alert silent to reception,
+    // which is what happened in production when queue_token_alert wasn't
+    // approved/synced on the WhatsApp BSP dashboard.
+    fun showQueueRegistrationToast(patientName: String, tokenAlertFailed: Boolean) {
+        if (tokenAlertFailed) {
+            Toast.makeText(
+                context,
+                "$patientName added to queue — but the WhatsApp token alert failed to send. Please let them know their token number directly.",
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            Toast.makeText(context, "$patientName added to queue! Token issued.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Refresh data coordinator
     fun refreshAllData() {
@@ -925,14 +945,14 @@ fun StaffAppNavHost(
                         targetPatient = searchRes.getOrNull()?.firstOrNull()
                     }
                     if (targetPatient != null) {
-                        queueRepo.registerQueueEntry(
+                        val qRes = queueRepo.registerQueueEntry(
                             patientId = targetPatient.id,
                             doctorId = doctorId,
                             chiefComplaint = complaint
                         )
                         showWalkInDialog = false
                         refreshAllData()
-                        Toast.makeText(context, "Walk-In Registered! Token issued.", Toast.LENGTH_SHORT).show()
+                        showQueueRegistrationToast(targetPatient.fullName, qRes.getOrNull()?.tokenAlertFailed == true)
                     } else {
                         Toast.makeText(context, "Failed to register: ${pRes.exceptionOrNull()?.message ?: "Unknown error"}", Toast.LENGTH_SHORT).show()
                     }
@@ -948,7 +968,7 @@ fun StaffAppNavHost(
                     showWalkInDialog = false
                     if (res.isSuccess) {
                         refreshAllData()
-                        Toast.makeText(context, "${patient.fullName} added to Dr.'s queue!", Toast.LENGTH_SHORT).show()
+                        showQueueRegistrationToast(patient.fullName, res.getOrNull()?.tokenAlertFailed == true)
                     } else {
                         Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -978,7 +998,7 @@ fun StaffAppNavHost(
                     selectedPatientForDirectQueue = null
                     if (res.isSuccess) {
                         refreshAllData()
-                        Toast.makeText(context, "${patient.fullName} added to Dr.'s queue! Token issued.", Toast.LENGTH_SHORT).show()
+                        showQueueRegistrationToast(patient.fullName, res.getOrNull()?.tokenAlertFailed == true)
                     } else {
                         Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -1081,6 +1101,23 @@ fun StaffAppNavHost(
                         }
                     }
                 }
+            },
+            onDownloadPdf = {
+                coroutineScope.launch {
+                    val clinicName = currentUser?.clinic?.name ?: "MedRay AI Clinic"
+                    val savedFileName = withContext(Dispatchers.IO) {
+                        InvoicePdfActions.downloadToDownloads(context, invoice, clinicName)
+                    }
+                    if (savedFileName != null) {
+                        Toast.makeText(context, "Saved $savedFileName to Downloads", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "Couldn't save the PDF — requires Android 10 or newer", Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onPrint = {
+                val clinicName = currentUser?.clinic?.name ?: "MedRay AI Clinic"
+                InvoicePdfActions.print(context, invoice, clinicName)
             }
         )
     }
@@ -1100,7 +1137,7 @@ fun StaffAppNavHost(
                         assignSelfCheckInTarget = null
                         if (res.isSuccess) {
                             refreshAllData()
-                            Toast.makeText(context, "${checkIn.patient?.fullName ?: "Patient"} added to Dr.'s queue! Token issued.", Toast.LENGTH_SHORT).show()
+                            showQueueRegistrationToast(checkIn.patient?.fullName ?: "Patient", res.getOrNull()?.tokenAlertFailed == true)
                         } else {
                             Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to assign doctor", Toast.LENGTH_LONG).show()
                         }
