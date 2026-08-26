@@ -248,11 +248,10 @@ fun getSampleInvoices(): List<Invoice> {
         Invoice(
             id = "inv-1",
             clinicId = "clinic-1",
-            invoiceNumber = "20260825-001",
             patientId = "pat-1",
             status = InvoiceStatus.PAID,
             total = 500.0,
-            issuedAt = "2026-08-25T09:30:00Z",
+            createdAt = "2026-08-25T09:30:00Z",
             patient = Patient(
                 id = "pat-1",
                 clinicId = "clinic-1",
@@ -264,11 +263,10 @@ fun getSampleInvoices(): List<Invoice> {
         Invoice(
             id = "inv-2",
             clinicId = "clinic-1",
-            invoiceNumber = "20260825-002",
             patientId = "pat-2",
             status = InvoiceStatus.ISSUED,
             total = 500.0,
-            issuedAt = "2026-08-25T10:00:00Z",
+            createdAt = "2026-08-25T10:00:00Z",
             patient = Patient(
                 id = "pat-2",
                 clinicId = "clinic-1",
@@ -280,11 +278,10 @@ fun getSampleInvoices(): List<Invoice> {
         Invoice(
             id = "inv-3",
             clinicId = "clinic-1",
-            invoiceNumber = "20260825-003",
             patientId = "pat-3",
             status = InvoiceStatus.PAID,
             total = 800.0,
-            issuedAt = "2026-08-25T10:15:00Z",
+            createdAt = "2026-08-25T10:15:00Z",
             patient = Patient(
                 id = "pat-3",
                 clinicId = "clinic-1",
@@ -390,6 +387,7 @@ fun StaffAppNavHost(
     var selectedPatientForDirectQueue by remember { mutableStateOf<Patient?>(null) }
     var showAddToQueueDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
+    var upiModalBusy by remember { mutableStateOf(false) }
 
 // Initial auth check handled seamlessly in SplashScreen
 
@@ -978,49 +976,55 @@ fun StaffAppNavHost(
             payeeName = data.payeeName,
             amount = data.amount,
             invoiceNumber = data.invoiceNumber,
+            busy = upiModalBusy,
             onDismiss = { upiModalData = null },
             onMarkPaid = {
-                coroutineScope.launch {
-                    val invoiceAmount = data.amount
-                    // Existing invoice (Billing screen's Collect Payment) — record the
-                    // payment against it directly and only report success if the server
-                    // actually confirms it, instead of always showing the success toast.
-                    if (data.invoiceId != null) {
-                        val paymentRes = billingRepo.recordPayment(
-                            invoiceId = data.invoiceId,
-                            amount = invoiceAmount,
-                            paymentMethod = PaymentMethod.UPI,
-                            transactionRef = "UPI-${data.invoiceNumber}"
-                        )
-                        upiModalData = null
-                        if (paymentRes.isSuccess) {
-                            refreshAllData()
-                            Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
-                        }
-                        return@launch
-                    }
-                    // Pre-visit fee collection (Queue screen's Collect Payment) — no
-                    // Invoice exists yet at this point; this is folded into a real
-                    // Payment automatically once the visit later completes (see
-                    // completeVisitAndInvoice, api/src/routes/visits.ts). Previously
-                    // this tried to create+pay an invoice with just a patientId,
-                    // which never had a matching backend route and always failed
-                    // silently behind an unconditional success toast.
-                    if (data.queueEntryId != null) {
-                        val paymentRes = queueRepo.collectAdvancePayment(
-                            queueEntryId = data.queueEntryId,
-                            amount = invoiceAmount,
-                            method = PaymentMethod.UPI,
-                            note = "UPI-OPD-${data.invoiceNumber}"
-                        )
-                        upiModalData = null
-                        if (paymentRes.isSuccess) {
-                            refreshAllData()
-                            Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded!", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Payment collected but failed to save — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                if (!upiModalBusy) {
+                    upiModalBusy = true
+                    coroutineScope.launch {
+                        val invoiceAmount = data.amount
+                        try {
+                            // Existing invoice (Billing screen's Collect Payment) — record the
+                            // payment against it directly and only report success if the server
+                            // actually confirms it, instead of always showing the success toast.
+                            if (data.invoiceId != null) {
+                                val paymentRes = billingRepo.recordPayment(
+                                    invoiceId = data.invoiceId,
+                                    amount = invoiceAmount,
+                                    paymentMethod = PaymentMethod.UPI,
+                                    transactionRef = "UPI-${data.invoiceNumber}"
+                                )
+                                upiModalData = null
+                                if (paymentRes.isSuccess) {
+                                    refreshAllData()
+                                    Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                                }
+                            } else if (data.queueEntryId != null) {
+                                // Pre-visit fee collection (Queue screen's Collect Payment) —
+                                // no Invoice exists yet at this point; this is folded into a
+                                // real Payment automatically once the visit later completes
+                                // (see completeVisitAndInvoice, api/src/routes/visits.ts).
+                                // Previously this tried to create+pay an invoice with just a
+                                // patientId, which never had a matching backend route and
+                                // always failed silently behind an unconditional success toast.
+                                val paymentRes = queueRepo.collectAdvancePayment(
+                                    queueEntryId = data.queueEntryId,
+                                    amount = invoiceAmount,
+                                    method = PaymentMethod.UPI,
+                                    note = "UPI-OPD-${data.invoiceNumber}"
+                                )
+                                upiModalData = null
+                                if (paymentRes.isSuccess) {
+                                    refreshAllData()
+                                    Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Payment collected but failed to save — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } finally {
+                            upiModalBusy = false
                         }
                     }
                 }
