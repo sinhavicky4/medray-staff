@@ -28,6 +28,60 @@ data class PasswordLoginBody(
     val password: String
 )
 
+// Mirrors api/src/routes/publicClinicSignup.ts's signupSchema exactly — the
+// admin sets their own password here (no generated temp password, unlike
+// staff added later via CreateStaffRequest below), since there's no admin
+// on the other end yet to hand one to. Unauthenticated: no session/CSRF
+// needed, same as PlatformConfigResponse's GET config below.
+data class ClinicSignupBody(
+    val clinicName: String,
+    val clinicAddress: String? = null,
+    val clinicPhone: String? = null,
+    val adminFullName: String,
+    val adminEmail: String,
+    val adminPhone: String,
+    val password: String
+)
+
+data class ClinicSignupResponse(val ok: Boolean = false, val message: String? = null)
+
+// Mirrors api/src/routes/users.ts's userCreateSchema — roles are restricted
+// server-side to RECEPTIONIST/NURSE/DOCTOR/GENERAL (a Clinic Admin can't
+// mint a peer CLINIC_ADMIN this way, that's POST /api/clinics/:id/admin,
+// Super-Admin-only and out of scope for this app).
+data class CreateStaffRequest(
+    val email: String,
+    val fullName: String,
+    val phone: String,
+    val roles: List<UserRole>,
+    val departmentId: String? = null
+)
+
+// The server always returns a fresh tempPassword on create/resend-invite —
+// the admin relays it to the new hire (email delivery is best-effort and
+// may silently no-op if SMTP isn't configured, same as every other admin-
+// provisioned account in this codebase), so the UI must show it, not just
+// assume the email arrived.
+data class CreateStaffResponse(
+    val id: String,
+    val email: String,
+    val phone: String? = null,
+    val fullName: String,
+    val roles: List<UserRole> = emptyList(),
+    val clinicId: String? = null,
+    val tempPassword: String? = null
+)
+
+data class UpdateStaffRequest(
+    val fullName: String? = null,
+    val roles: List<UserRole>? = null,
+    val email: String? = null,
+    val phone: String? = null
+)
+
+data class ResendInviteResponse(val id: String, val tempPassword: String? = null)
+data class DeactivateStaffResponse(val id: String, val deletedAt: String? = null)
+
 data class RegisterQueueRequest(
     val id: String? = null,
     val patientId: String,
@@ -160,7 +214,43 @@ interface StaffApiService {
     suspend fun listClinics(): Response<List<Clinic>>
 
     @GET("users")
-    suspend fun listUsers(@Query("clinicId") clinicId: String? = null): Response<List<User>>
+    suspend fun listUsers(
+        @Query("clinicId") clinicId: String? = null,
+        @Query("includeDeleted") includeDeleted: Boolean? = null
+    ): Response<List<User>>
+
+    // Staff management — Clinic Admin adding/editing Receptionist/Nurse/
+    // Doctor/General staff on their own clinic. See users.ts's canManageStaff.
+    @POST("users")
+    suspend fun createStaff(
+        @Body req: CreateStaffRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<CreateStaffResponse>
+
+    @PATCH("users/{id}")
+    suspend fun updateStaff(
+        @Path("id") id: String,
+        @Body req: UpdateStaffRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<User>
+
+    @POST("users/{id}/resend-invite")
+    suspend fun resendStaffInvite(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<ResendInviteResponse>
+
+    @DELETE("users/{id}")
+    suspend fun deactivateStaff(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<DeactivateStaffResponse>
+
+    @POST("users/{id}/restore")
+    suspend fun restoreStaff(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<DeactivateStaffResponse>
 
     // Queue
     @GET("queue")
@@ -366,6 +456,15 @@ interface StaffApiService {
     // hardcoded default.
     @GET("config")
     suspend fun getPlatformConfig(): Response<PlatformConfigResponse>
+
+    // Public, no auth — mirrors web's POST /api/public/clinic-signup exactly
+    // (same rate-limited, unauthenticated router). Creates a pendingApproval
+    // Clinic + its first CLINIC_ADMIN in one transaction; the admin can't
+    // actually log in until they verify their email (link sent to
+    // adminEmail, opened in the device's browser — no in-app deep link yet)
+    // AND a Super Admin approves the clinic on the web portal.
+    @POST("public/clinic-signup")
+    suspend fun signUpClinic(@Body req: ClinicSignupBody): Response<ClinicSignupResponse>
 }
 
 data class SendChatMessageRequest(val messages: List<ChatMessage>)

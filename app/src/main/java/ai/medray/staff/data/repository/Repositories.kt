@@ -146,6 +146,142 @@ class AuthRepository(private val context: Context) {
     }
 }
 
+// Unauthenticated — used only from the pre-login "Sign Up Your Clinic"
+// screen, same shared ApiClient/OkHttpClient every other repository uses
+// (no session cookie to send yet, which is fine: this endpoint doesn't need
+// one). See StaffApiService.signUpClinic's own doc comment for the full
+// verify-email + Super-Admin-approval flow this kicks off.
+class ClinicSignupRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+
+    suspend fun signUp(
+        clinicName: String,
+        clinicAddress: String?,
+        clinicPhone: String?,
+        adminFullName: String,
+        adminEmail: String,
+        adminPhone: String,
+        password: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.signUpClinic(
+                ClinicSignupBody(
+                    clinicName = clinicName.trim(),
+                    clinicAddress = clinicAddress?.trim()?.ifBlank { null },
+                    clinicPhone = clinicPhone?.trim()?.ifBlank { null },
+                    adminFullName = adminFullName.trim(),
+                    adminEmail = adminEmail.trim(),
+                    adminPhone = adminPhone.trim(),
+                    password = password
+                )
+            )
+            if (res.isSuccessful && res.body()?.ok == true) {
+                Result.success(res.body()?.message ?: "Check your email to verify your account.")
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't sign up your clinic. Please try again."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
+// Clinic Admin managing their own clinic's Receptionist/Nurse/Doctor/General
+// staff — mirrors web's /staff page, same users.ts endpoints, same
+// STAFF_ROLES restriction enforced server-side (a Clinic Admin can't mint a
+// peer CLINIC_ADMIN through this — see CreateStaffRequest's doc comment).
+class StaffManagementRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+
+    suspend fun listStaff(includeDeleted: Boolean = false): Result<List<User>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listUsers(clinicId = clinicId, includeDeleted = if (includeDeleted) true else null)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to load staff directory"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createStaff(
+        email: String,
+        fullName: String,
+        phone: String,
+        roles: List<UserRole>
+    ): Result<CreateStaffResponse> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val req = CreateStaffRequest(
+                email = email.trim(),
+                fullName = fullName.trim(),
+                phone = if (phone.trim().startsWith("+")) phone.trim() else "+91${phone.trim()}",
+                roles = roles
+            )
+            val res = api.createStaff(req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to add staff member"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateStaff(id: String, fullName: String?, roles: List<UserRole>?, email: String?, phone: String?): Result<User> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateStaff(id = id, req = UpdateStaffRequest(fullName, roles, email, phone), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to update staff member"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resendInvite(id: String): Result<String?> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.resendStaffInvite(id = id, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!.tempPassword)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to resend invite"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deactivateStaff(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.deactivateStaff(id = id, clinicId = clinicId)
+            if (res.isSuccessful) Result.success(Unit) else Result.failure(Exception(res.errorBody()?.string() ?: "Failed to deactivate staff member"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun restoreStaff(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.restoreStaff(id = id, clinicId = clinicId)
+            if (res.isSuccessful) Result.success(Unit) else Result.failure(Exception(res.errorBody()?.string() ?: "Failed to restore staff member"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
 class QueueRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
     private val db = StaffDatabase.getDatabase(context)
