@@ -16,6 +16,17 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
+// Android-restricted (package name + SHA-1) Google Places API key — kept out
+// of source control like keystore.properties above, not a committed secret.
+// Empty string (never null, or the BuildConfig string literal breaks) when
+// unset locally; PlacesAutocompleteRepository no-ops gracefully in that case.
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties()
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val placesApiKey: String = localProperties.getProperty("PLACES_API_KEY") ?: ""
+
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
 val appVersionCode: Int = 15
@@ -38,6 +49,7 @@ android {
 
         buildConfigField("String", "VERSION_NAME_DISPLAY", "\"v${appVersionName} (${appVersionCode})\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"43389690359-08ujar849pe8shqlfu1a2scu4vb5r1ge.apps.googleusercontent.com\"")
+        buildConfigField("String", "PLACES_API_KEY", "\"$placesApiKey\"")
     }
 
     signingConfigs {
@@ -126,6 +138,14 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+
+    // Note: address autocomplete on the clinic sign-up form (parity with
+    // web's AddressAutocompleteInput) is Places API (New) called directly
+    // over the existing OkHttp dependency below — see
+    // PlacesAutocompleteRepository's doc comment for why the Places SDK
+    // for Android (com.google.android.libraries.places) isn't used: it
+    // routes to the legacy Places API, which this project doesn't have
+    // enabled (ApiException 9011).
 
     // Room SQLite Database
     val roomVersion = "2.6.1"

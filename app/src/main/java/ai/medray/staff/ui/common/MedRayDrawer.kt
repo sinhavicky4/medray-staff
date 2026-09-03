@@ -44,6 +44,7 @@ fun MedRayDrawerContent(
     onLogout: () -> Unit,
     pendingSelfCheckInCount: Int = 0,
     chatAssistantEnabled: Boolean = false,
+    staffManagementEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val items = listOfNotNull(
@@ -53,6 +54,14 @@ fun MedRayDrawerContent(
             selectedIcon = Icons.AutoMirrored.Filled.ListAlt,
             unselectedIcon = Icons.AutoMirrored.Outlined.ListAlt
         ),
+        if (staffManagementEnabled) {
+            DrawerMenuItem(
+                route = "staff_management",
+                title = "Staff Management",
+                selectedIcon = Icons.Filled.Badge,
+                unselectedIcon = Icons.Outlined.Badge
+            )
+        } else null,
         DrawerMenuItem(
             route = "patients",
             title = "Patients Directory",
@@ -183,14 +192,26 @@ fun MedRayDrawerContent(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
-                            val roleBg = if (user?.isNurse == true) MedRayTealContainer else MedRayBlueContainer
-                            val roleColor = if (user?.isNurse == true) MedRayTealDark else MedRayBlueDark
+                            val roleBg = when {
+                                user?.isClinicAdmin == true -> Color(0xFFFEF3C7)
+                                user?.isNurse == true -> MedRayTealContainer
+                                else -> MedRayBlueContainer
+                            }
+                            val roleColor = when {
+                                user?.isClinicAdmin == true -> Color(0xFF92400E)
+                                user?.isNurse == true -> MedRayTealDark
+                                else -> MedRayBlueDark
+                            }
                             Surface(
                                 color = roleBg,
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = if (user?.isNurse == true) "NURSE" else "RECEPTIONIST",
+                                    text = when {
+                                        user?.isClinicAdmin == true -> "CLINIC ADMIN"
+                                        user?.isNurse == true -> "NURSE"
+                                        else -> "RECEPTIONIST"
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = roleColor,

@@ -146,9 +146,12 @@ data class User(
     val activeClinic: Clinic? = null,
     val specialization: String? = null,
     val qualification: String? = null,
-    val registrationNumber: String? = null
+    val registrationNumber: String? = null,
+    val deletedAt: String? = null
 ) : Serializable {
-    val isNurse: Boolean 
+    val isDeactivated: Boolean get() = deletedAt != null
+
+    val isNurse: Boolean
         get() = roles.contains(UserRole.NURSE) || 
                 role?.equals("NURSE", ignoreCase = true) == true || 
                 specialization?.contains("nurse", ignoreCase = true) == true

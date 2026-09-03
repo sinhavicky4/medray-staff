@@ -65,6 +65,10 @@ private fun formatErrorMessage(raw: String?): String {
             "Invalid OTP code. Please check and re-enter."
         extracted.contains("Only Doctor accounts", ignoreCase = true) ->
             "This account is not authorized for mobile staff triage. Please contact your Clinic Admin."
+        extracted.contains("verify your email", ignoreCase = true) ->
+            "Please verify your email first — check your inbox for the verification link we sent when you signed up."
+        extracted.contains("awaiting approval", ignoreCase = true) ->
+            "Your clinic is still awaiting approval. We'll notify you by email once a Super Admin reviews and approves it."
         else -> extracted
     }
 }
@@ -84,6 +88,7 @@ fun LoginScreen(
     onGoogleSignIn: () -> Unit,
     isGoogleSigningIn: Boolean,
     error: String?,
+    onSignUpClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0: Phone OTP, 1: Password
@@ -545,6 +550,31 @@ fun LoginScreen(
                     }
 
                     Spacer(Modifier.height(18.dp))
+
+                    // New clinic sign-up entry point
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "New clinic?",
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                        TextButton(onClick = onSignUpClick, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                            Text(
+                                "Sign Up Your Clinic",
+                                fontFamily = HeadingFontFamily,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MedRayPrimaryBlue
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
 
                     // Security assurance
                     Row(

@@ -10,9 +10,9 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import ai.medray.staff.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
@@ -23,6 +23,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -34,6 +38,10 @@ import ai.medray.staff.ui.appointments.AppointmentsScreen
 import ai.medray.staff.ui.splash.SplashScreen
 import ai.medray.staff.ui.auth.LoginScreen
 import ai.medray.staff.ui.auth.OtpVerificationScreen
+import ai.medray.staff.ui.auth.ClinicSignupScreen
+import ai.medray.staff.ui.auth.ClinicSignupFormState
+import ai.medray.staff.ui.admin.StaffManagementScreen
+import ai.medray.staff.ui.admin.AddEditStaffDialog
 import ai.medray.staff.ui.billing.BillingScreen
 import ai.medray.staff.ui.common.*
 import ai.medray.staff.ui.nurse.FastVitalsEntryDialog
@@ -310,6 +318,8 @@ sealed class Screen(val route: String) {
     object SelfCheckIns : Screen("self_checkins")
     object Profile : Screen("profile")
     object Chat : Screen("chat")
+    object ClinicSignup : Screen("clinic_signup")
+    object StaffManagement : Screen("staff_management")
 }
 
 data class UpiPaymentModalData(
@@ -335,6 +345,9 @@ fun StaffAppNavHost(
     selfCheckInRepo: SelfCheckInRepository,
     visitRepo: VisitRepository,
     chatRepo: ChatRepository,
+    clinicSignupRepo: ClinicSignupRepository,
+    staffManagementRepo: StaffManagementRepository,
+    placesRepository: PlacesAutocompleteRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -352,6 +365,40 @@ fun StaffAppNavHost(
     var isAuthLoading by remember { mutableStateOf(false) }
     var isPasswordLoading by remember { mutableStateOf(false) }
     var isGoogleLoading by remember { mutableStateOf(false) }
+
+    // Clinic sign-up state (pre-auth, see Screen.ClinicSignup)
+    var clinicSignupForm by remember { mutableStateOf(ClinicSignupFormState()) }
+    var isClinicSignupSubmitting by remember { mutableStateOf(false) }
+    var clinicSignupSubmitted by remember { mutableStateOf(false) }
+    var clinicSignupConfirmationMessage by remember { mutableStateOf<String?>(null) }
+    var clinicSignupError by remember { mutableStateOf<String?>(null) }
+
+    // Staff management state (Screen.StaffManagement, Clinic Admin only)
+    var staffList by remember { mutableStateOf<List<User>>(emptyList()) }
+    var staffListLoading by remember { mutableStateOf(false) }
+    var staffListError by remember { mutableStateOf<String?>(null) }
+    var staffListLoaded by remember { mutableStateOf(false) }
+    var staffDialogTarget by remember { mutableStateOf<User?>(null) }
+    var showAddStaffDialog by remember { mutableStateOf(false) }
+    var staffActionBusy by remember { mutableStateOf(false) }
+    var staffActionError by remember { mutableStateOf<String?>(null) }
+    var staffTempPasswordReveal by remember { mutableStateOf<Pair<String, String>?>(null) } // fullName to tempPassword
+    var showDeactivatedStaff by remember { mutableStateOf(false) }
+
+    fun reloadStaffList() {
+        coroutineScope.launch {
+            staffListLoading = true
+            staffListError = null
+            val res = staffManagementRepo.listStaff(includeDeleted = showDeactivatedStaff)
+            staffListLoading = false
+            staffListLoaded = true
+            if (res.isSuccess) {
+                staffList = res.getOrNull().orEmpty()
+            } else {
+                staffListError = res.exceptionOrNull()?.message ?: "Couldn't load staff list."
+            }
+        }
+    }
 
     val googlePlayServicesLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -568,7 +615,7 @@ fun StaffAppNavHost(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
-    val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route
+    val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route && currentRoute != Screen.ClinicSignup.route
 
     val screenTitle = when (currentRoute) {
         Screen.Queue.route -> if (currentUser?.isNurse == true) "Triage Queue" else "OPD Queue"
@@ -578,6 +625,7 @@ fun StaffAppNavHost(
         Screen.SelfCheckIns.route -> "Self Check-In Kiosk"
         Screen.Profile.route -> "Staff Profile"
         Screen.Chat.route -> "Chat Assistant"
+        Screen.StaffManagement.route -> "Staff Management"
         else -> "MedRay Staff"
     }
     val screenSubtitle = if (currentRoute == Screen.Chat.route) chatAssistantName else (currentUser?.clinic?.name ?: "Main Clinic")
@@ -592,6 +640,7 @@ fun StaffAppNavHost(
                     currentRoute = currentRoute,
                     pendingSelfCheckInCount = selfCheckInsList.size,
                     chatAssistantEnabled = currentUser?.clinic?.chatAssistantEnabled == true,
+                    staffManagementEnabled = currentUser?.isClinicAdmin == true,
                     onNavigate = { route ->
                         coroutineScope.launch { drawerState.close() }
                         if (route != currentRoute) {
@@ -633,7 +682,14 @@ fun StaffAppNavHost(
             },
             bottomBar = {
                 if (isAppAuthenticated) {
-                    val bottomNavItems = if (currentUser?.isNurse == true) {
+                    val bottomNavItems = if (currentUser?.isClinicAdmin == true) {
+                        listOf(
+                            BottomNavItem(Screen.Queue.route, "OPD Queue", Icons.AutoMirrored.Filled.ListAlt, Icons.AutoMirrored.Outlined.ListAlt),
+                            BottomNavItem(Screen.Patients.route, "Patients", Icons.Filled.People, Icons.Outlined.People),
+                            BottomNavItem(Screen.StaffManagement.route, "Staff", Icons.Filled.Badge, Icons.Outlined.Badge),
+                            BottomNavItem(Screen.Profile.route, "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle)
+                        )
+                    } else if (currentUser?.isNurse == true) {
                         listOf(
                             BottomNavItem(Screen.Queue.route, "Triage", Icons.AutoMirrored.Filled.ListAlt, Icons.AutoMirrored.Outlined.ListAlt),
                             BottomNavItem(Screen.Patients.route, "Patients", Icons.Filled.People, Icons.Outlined.People),
@@ -760,7 +816,51 @@ fun StaffAppNavHost(
                             }
                         },
                         isGoogleSigningIn = isGoogleLoading,
-                        error = authError
+                        error = authError,
+                        onSignUpClick = {
+                            clinicSignupForm = ClinicSignupFormState()
+                            clinicSignupSubmitted = false
+                            clinicSignupError = null
+                            navController.navigate(Screen.ClinicSignup.route)
+                        }
+                    )
+                }
+
+                // 1b. Clinic Sign-Up Screen (pre-auth)
+                composable(Screen.ClinicSignup.route) {
+                    ClinicSignupScreen(
+                        formState = clinicSignupForm,
+                        onFormChange = { clinicSignupForm = it },
+                        onSubmit = {
+                            isClinicSignupSubmitting = true
+                            clinicSignupError = null
+                            coroutineScope.launch {
+                                val res = clinicSignupRepo.signUp(
+                                    clinicName = clinicSignupForm.clinicName,
+                                    clinicAddress = clinicSignupForm.clinicAddress,
+                                    clinicPhone = clinicSignupForm.clinicPhone,
+                                    adminFullName = clinicSignupForm.adminFullName,
+                                    adminEmail = clinicSignupForm.adminEmail,
+                                    adminPhone = clinicSignupForm.adminPhone,
+                                    password = clinicSignupForm.password
+                                )
+                                isClinicSignupSubmitting = false
+                                if (res.isSuccess) {
+                                    clinicSignupConfirmationMessage = res.getOrNull()
+                                    clinicSignupSubmitted = true
+                                } else {
+                                    clinicSignupError = res.exceptionOrNull()?.message ?: "Couldn't sign up your clinic. Please try again."
+                                }
+                            }
+                        },
+                        isSubmitting = isClinicSignupSubmitting,
+                        submitted = clinicSignupSubmitted,
+                        confirmationMessage = clinicSignupConfirmationMessage,
+                        error = clinicSignupError,
+                        onBackToLogin = {
+                            navController.navigate(Screen.Login.route) { popUpTo(Screen.Login.route) { inclusive = true } }
+                        },
+                        placesRepository = placesRepository
                     )
                 }
 
@@ -1025,6 +1125,68 @@ fun StaffAppNavHost(
                         onSuggestedPrompt = { sendChatMessage(it) },
                         onConfirmAction = { confirmChatAction() },
                         onDismissAction = { chatPendingAction = null }
+                    )
+                }
+
+                // Staff Management (Clinic Admin only)
+                composable(Screen.StaffManagement.route) {
+                    LaunchedEffect(Unit) {
+                        if (!staffListLoaded) reloadStaffList()
+                    }
+                    StaffManagementScreen(
+                        staff = staffList,
+                        isLoading = staffListLoading,
+                        error = staffListError,
+                        showDeactivated = showDeactivatedStaff,
+                        onShowDeactivatedChange = {
+                            showDeactivatedStaff = it
+                            reloadStaffList()
+                        },
+                        onRefresh = { reloadStaffList() },
+                        onAddStaffClick = {
+                            staffActionError = null
+                            showAddStaffDialog = true
+                        },
+                        onEditStaffClick = { staffMember ->
+                            staffActionError = null
+                            staffDialogTarget = staffMember
+                        },
+                        onResendInvite = { staffMember ->
+                            coroutineScope.launch {
+                                staffActionBusy = true
+                                val res = staffManagementRepo.resendInvite(staffMember.id)
+                                staffActionBusy = false
+                                if (res.isSuccess) {
+                                    val tempPassword = res.getOrNull()
+                                    if (!tempPassword.isNullOrBlank()) {
+                                        staffTempPasswordReveal = staffMember.fullName to tempPassword
+                                    } else {
+                                        Toast.makeText(context, "Invite resent to ${staffMember.fullName}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't resend invite", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onDeactivateStaff = { staffMember ->
+                            coroutineScope.launch {
+                                staffActionBusy = true
+                                val res = staffManagementRepo.deactivateStaff(staffMember.id)
+                                staffActionBusy = false
+                                if (res.isSuccess) reloadStaffList()
+                                else Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't deactivate staff member", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onRestoreStaff = { staffMember ->
+                            coroutineScope.launch {
+                                staffActionBusy = true
+                                val res = staffManagementRepo.restoreStaff(staffMember.id)
+                                staffActionBusy = false
+                                if (res.isSuccess) reloadStaffList()
+                                else Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't restore staff member", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        actionBusy = staffActionBusy
                     )
                 }
             }
@@ -1315,6 +1477,84 @@ fun StaffAppNavHost(
                     context.startActivity(intent)
                 } catch (e: Exception) {
                     Toast.makeText(context, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    // Add / edit staff (Clinic Admin, Staff Management screen)
+    if (showAddStaffDialog || staffDialogTarget != null) {
+        AddEditStaffDialog(
+            existing = staffDialogTarget,
+            isBusy = staffActionBusy,
+            error = staffActionError,
+            onDismiss = {
+                showAddStaffDialog = false
+                staffDialogTarget = null
+                staffActionError = null
+            },
+            onSubmit = { fullName, email, phone, roles ->
+                val editing = staffDialogTarget
+                coroutineScope.launch {
+                    staffActionBusy = true
+                    staffActionError = null
+                    val res = if (editing != null) {
+                        staffManagementRepo.updateStaff(editing.id, fullName, roles, email, phone)
+                    } else {
+                        staffManagementRepo.createStaff(email, fullName, phone, roles)
+                    }
+                    staffActionBusy = false
+                    if (res.isSuccess) {
+                        showAddStaffDialog = false
+                        staffDialogTarget = null
+                        reloadStaffList()
+                        if (editing == null) {
+                            val tempPassword = (res.getOrNull() as? CreateStaffResponse)?.tempPassword
+                            if (!tempPassword.isNullOrBlank()) {
+                                staffTempPasswordReveal = fullName to tempPassword
+                            }
+                        }
+                    } else {
+                        staffActionError = res.exceptionOrNull()?.message ?: "Couldn't save staff member. Please try again."
+                    }
+                }
+            }
+        )
+    }
+
+    // One-time reveal of a generated temp password after create/resend-invite —
+    // email delivery is best-effort, so the admin needs a fallback way to hand
+    // the new staff member their first-login credential.
+    staffTempPasswordReveal?.let { (fullName, tempPassword) ->
+        AlertDialog(
+            onDismissRequest = { staffTempPasswordReveal = null },
+            title = { Text("Temporary Password", fontFamily = HeadingFontFamily, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "Share this temporary password with $fullName. They'll be asked to set a new one on first login.",
+                        fontFamily = InterFontFamily,
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        tempPassword,
+                        fontFamily = HeadingFontFamily,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MedRayBluePrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFEFF6FF), RoundedCornerShape(10.dp))
+                            .padding(vertical = 12.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { staffTempPasswordReveal = null }) {
+                    Text("Done", fontFamily = HeadingFontFamily, fontWeight = FontWeight.Bold)
                 }
             }
         )
