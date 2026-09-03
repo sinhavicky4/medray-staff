@@ -29,6 +29,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.R
+import ai.medray.staff.data.repository.PlacesAutocompleteRepository
+import ai.medray.staff.ui.common.AddressAutocompleteField
 import ai.medray.staff.ui.common.WavyBackground
 import ai.medray.staff.ui.theme.*
 
@@ -74,6 +76,7 @@ fun ClinicSignupScreen(
     confirmationMessage: String?,
     error: String?,
     onBackToLogin: () -> Unit,
+    placesRepository: PlacesAutocompleteRepository,
     modifier: Modifier = Modifier
 ) {
     var showPassword by remember { mutableStateOf(false) }
@@ -191,7 +194,15 @@ fun ClinicSignupScreen(
                     SectionLabel("Clinic Details")
                     LabeledField("Clinic Name", formState.clinicName, { onFormChange(formState.copy(clinicName = it)) }, "e.g. Dr Sharma Clinic")
                     Spacer(Modifier.height(10.dp))
-                    LabeledField("Address (optional)", formState.clinicAddress, { onFormChange(formState.copy(clinicAddress = it)) }, "Clinic address")
+                    Text("Address (optional)", fontFamily = HeadingFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MedRayTextDark)
+                    Spacer(Modifier.height(6.dp))
+                    AddressAutocompleteField(
+                        value = formState.clinicAddress,
+                        onValueChange = { onFormChange(formState.copy(clinicAddress = it)) },
+                        repository = placesRepository,
+                        placeholder = "Start typing an address…",
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(10.dp))
                     LabeledField("Clinic Phone (optional)", formState.clinicPhone, { onFormChange(formState.copy(clinicPhone = it)) }, "Reception phone number", keyboardType = KeyboardType.Phone)
 

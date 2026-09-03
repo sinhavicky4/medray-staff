@@ -347,6 +347,7 @@ fun StaffAppNavHost(
     chatRepo: ChatRepository,
     clinicSignupRepo: ClinicSignupRepository,
     staffManagementRepo: StaffManagementRepository,
+    placesRepository: PlacesAutocompleteRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -858,7 +859,8 @@ fun StaffAppNavHost(
                         error = clinicSignupError,
                         onBackToLogin = {
                             navController.navigate(Screen.Login.route) { popUpTo(Screen.Login.route) { inclusive = true } }
-                        }
+                        },
+                        placesRepository = placesRepository
                     )
                 }
 

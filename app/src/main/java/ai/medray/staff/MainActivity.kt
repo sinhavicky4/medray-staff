@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.google.android.libraries.places.api.Places
 import ai.medray.staff.data.repository.*
 import ai.medray.staff.ui.navigation.StaffAppNavHost
 import ai.medray.staff.ui.theme.MedRayStaffTheme
@@ -15,6 +16,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Address autocomplete on the clinic sign-up form needs this before
+        // any PlacesClient is created — no-ops (leaves the client unusable,
+        // PlacesAutocompleteRepository catches and no-ops on that) when
+        // PLACES_API_KEY wasn't set in local.properties.
+        if (!Places.isInitialized() && BuildConfig.PLACES_API_KEY.isNotBlank()) {
+            Places.initialize(applicationContext, BuildConfig.PLACES_API_KEY)
+        }
 
         val authRepo = AuthRepository(this)
         val queueRepo = QueueRepository(this)
@@ -27,6 +36,7 @@ class MainActivity : ComponentActivity() {
         val chatRepo = ChatRepository(this)
         val clinicSignupRepo = ClinicSignupRepository(this)
         val staffManagementRepo = StaffManagementRepository(this)
+        val placesRepository = PlacesAutocompleteRepository(this)
 
         setContent {
             MedRayStaffTheme {
@@ -45,7 +55,8 @@ class MainActivity : ComponentActivity() {
                         visitRepo = visitRepo,
                         chatRepo = chatRepo,
                         clinicSignupRepo = clinicSignupRepo,
-                        staffManagementRepo = staffManagementRepo
+                        staffManagementRepo = staffManagementRepo,
+                        placesRepository = placesRepository
                     )
                 }
             }
