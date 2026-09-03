@@ -139,10 +139,13 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.google.android.gms:play-services-auth:21.2.0")
 
-    // Places SDK — address autocomplete on the clinic sign-up form (parity
-    // with web's AddressAutocompleteInput). Needs PLACES_API_KEY in
-    // local.properties; see PlacesAutocompleteRepository.
-    implementation("com.google.android.libraries.places:places:3.4.0")
+    // Note: address autocomplete on the clinic sign-up form (parity with
+    // web's AddressAutocompleteInput) is Places API (New) called directly
+    // over the existing OkHttp dependency below — see
+    // PlacesAutocompleteRepository's doc comment for why the Places SDK
+    // for Android (com.google.android.libraries.places) isn't used: it
+    // routes to the legacy Places API, which this project doesn't have
+    // enabled (ApiException 9011).
 
     // Room SQLite Database
     val roomVersion = "2.6.1"

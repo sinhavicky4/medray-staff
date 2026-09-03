@@ -51,9 +51,18 @@ fun AddressAutocompleteField(
     var suggestions by remember { mutableStateOf<List<AddressSuggestion>>(emptyList()) }
     var expanded by remember { mutableStateOf(false) }
     var isResolving by remember { mutableStateOf(false) }
+    // Selecting a suggestion sets `value` to its full formatted address,
+    // which would otherwise re-trigger this same LaunchedEffect and pop a
+    // second, irrelevant dropdown right on top of the field the user just
+    // finished picking from — skip exactly that one resulting query.
+    var suppressNextPredict by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(value) {
+        if (suppressNextPredict) {
+            suppressNextPredict = false
+            return@LaunchedEffect
+        }
         if (value.length < 3) {
             suggestions = emptyList()
             expanded = false
@@ -96,10 +105,12 @@ fun AddressAutocompleteField(
                     },
                     onClick = {
                         expanded = false
+                        suggestions = emptyList()
                         coroutineScope.launch {
                             isResolving = true
                             val result = repository.fetchFormattedAddress(suggestion.placeId)
                             isResolving = false
+                            suppressNextPredict = true
                             onValueChange(result.getOrDefault("${suggestion.primaryText}, ${suggestion.secondaryText}"))
                         }
                     }
