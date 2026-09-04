@@ -49,6 +49,19 @@ jobs:
               "$ANDROID_KEY_PASSWORD" > "$GITHUB_WORKSPACE/keystore.properties"
           fi
 
+      # local.properties is gitignored like keystore.properties above, so it
+      # never exists on this runner — without this, BuildConfig.PLACES_API_KEY
+      # silently compiles to "" and PlacesAutocompleteRepository always
+      # returns an empty suggestion list on every distributed build (no
+      # crash, no error, address autocomplete just never shows anything).
+      - name: Write local.properties (Places API key)
+        env:
+          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+        run: |
+          if [ -n "$PLACES_API_KEY" ]; then
+            echo "PLACES_API_KEY=$PLACES_API_KEY" >> "$GITHUB_WORKSPACE/local.properties"
+          fi
+
       - name: Build Release APK
         run: ./gradlew assembleRelease --console=plain
 
