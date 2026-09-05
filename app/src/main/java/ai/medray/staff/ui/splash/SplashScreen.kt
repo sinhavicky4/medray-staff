@@ -1,6 +1,7 @@
 package ai.medray.staff.ui.splash
 
 import ai.medray.staff.R
+import ai.medray.staff.core.config.BrandConfig
 import ai.medray.staff.ui.common.WavyBackground
 import ai.medray.staff.ui.theme.HeadingFontFamily
 import ai.medray.staff.ui.theme.InterFontFamily
@@ -114,7 +115,7 @@ fun SplashScreen(onFinished: () -> Unit) {
 
             // Brand Title in Plus Jakarta Sans
             Text(
-                "MedRay Staff",
+                BrandConfig.APP_NAME,
                 fontFamily = HeadingFontFamily,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
