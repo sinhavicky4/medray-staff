@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -96,12 +97,14 @@ fun PatientsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(
                         text = "Patients Directory",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "${patients.size} registered patient records",
@@ -114,10 +117,10 @@ fun PatientsScreen(
                     onClick = onRegisterPatientClick,
                     colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
                 ) {
                     Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text("+ New Patient", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -128,7 +131,7 @@ fun PatientsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Total Registered",
@@ -139,7 +142,7 @@ fun PatientsScreen(
                         iconTint = MedRayBluePrimary,
                         isSelected = selectedFilter == PatientGenderFilter.ALL,
                         onClick = { selectedFilter = PatientGenderFilter.ALL },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Male Patients",
@@ -152,13 +155,13 @@ fun PatientsScreen(
                         onClick = {
                             selectedFilter = if (selectedFilter == PatientGenderFilter.MALE) PatientGenderFilter.ALL else PatientGenderFilter.MALE
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Female Patients",
@@ -171,7 +174,7 @@ fun PatientsScreen(
                         onClick = {
                             selectedFilter = if (selectedFilter == PatientGenderFilter.FEMALE) PatientGenderFilter.ALL else PatientGenderFilter.FEMALE
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Senior Citizens",
@@ -184,7 +187,7 @@ fun PatientsScreen(
                         onClick = {
                             selectedFilter = if (selectedFilter == PatientGenderFilter.SENIORS) PatientGenderFilter.ALL else PatientGenderFilter.SENIORS
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
             }
@@ -379,7 +382,10 @@ fun PatientCard(
                         text = patient.fullName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                     )
 
                     Surface(
@@ -391,6 +397,7 @@ fun PatientCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MedRayBluePrimary,
+                            maxLines = 1,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }

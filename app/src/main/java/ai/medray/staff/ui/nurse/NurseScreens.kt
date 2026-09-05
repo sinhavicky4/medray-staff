@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -127,13 +128,15 @@ fun NurseHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     val displayName = userName?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "Nurse" } ?: "Nurse"
                     Text(
                         text = "$greeting, $displayName 👋",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -181,7 +184,7 @@ fun NurseHomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Arrived",
@@ -194,7 +197,7 @@ fun NurseHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.ARRIVED) null else QueueStatus.ARRIVED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Waiting",
@@ -207,13 +210,13 @@ fun NurseHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.WAITING) null else QueueStatus.WAITING
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "In Triage",
@@ -226,7 +229,7 @@ fun NurseHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.IN_PROGRESS) null else QueueStatus.IN_PROGRESS
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Completed",
@@ -239,7 +242,7 @@ fun NurseHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.COMPLETED) null else QueueStatus.COMPLETED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
             }
@@ -394,7 +397,8 @@ fun NursePatientCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 6.dp)
                 ) {
                     Surface(
                         color = MedRayBlueLight,
@@ -405,7 +409,9 @@ fun NursePatientCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MedRayBluePrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                         )
                     }
 
@@ -415,7 +421,7 @@ fun NursePatientCard(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.Schedule,
@@ -429,7 +435,9 @@ fun NursePatientCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Slate600,
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -545,36 +553,38 @@ fun NursePatientCard(
             // Action Buttons Bar
             Spacer(modifier = Modifier.height(12.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
             ) {
                 if (entry.status == QueueStatus.COMPLETED) {
                     Button(
                         onClick = onViewPrescriptionClick,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("View Rx", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("View Rx", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
                     Button(
                         onClick = onRecordVitalsClick,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = if (entry.vitals.hasAnyReading()) "Edit Vitals" else "Record Vitals",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -584,20 +594,21 @@ fun NursePatientCard(
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MedRayTealDark),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF99F6E4)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(0.9f)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
+                    modifier = Modifier.weight(0.9f).fillMaxHeight()
                 ) {
                     Icon(Icons.Outlined.CameraAlt, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Scan Lab", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("Scan Lab", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
                 if (entry.status == QueueStatus.WAITING) {
                     IconButton(
                         onClick = onMarkArrived,
                         modifier = Modifier
+                            .fillMaxHeight()
                             .background(Color(0xFFDCFCE7), RoundedCornerShape(10.dp))
-                            .size(38.dp)
+                            .width(36.dp)
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = "Mark Arrived", tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }
@@ -650,6 +661,8 @@ fun FastVitalsEntryDialog(
             shadowElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth(0.92f)
+                .widthIn(max = 480.dp)
+                .imePadding()
                 .padding(vertical = 16.dp)
         ) {
             Column(
