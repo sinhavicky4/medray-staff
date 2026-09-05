@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.BuildConfig
@@ -105,6 +106,7 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -266,7 +268,7 @@ fun LoginScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
                             ) {
                                 Text("🇮🇳", fontSize = 14.sp)
                                 Spacer(Modifier.width(4.dp))
@@ -297,10 +299,12 @@ fun LoginScreen(
                                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                                         if (phone.isEmpty()) {
                                             Text(
-                                                "Enter 10-digit mobile number",
+                                                "10-digit mobile number",
                                                 fontFamily = InterFontFamily,
-                                                fontSize = 14.sp,
-                                                color = Color(0xFF94A3B8)
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF94A3B8),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                         innerTextField()

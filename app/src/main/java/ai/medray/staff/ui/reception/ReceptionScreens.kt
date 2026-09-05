@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.*
 import ai.medray.staff.ui.common.DynamicUpiQrDialog
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
@@ -125,13 +127,15 @@ fun ReceptionHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     val displayName = userName?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "Front Desk" } ?: "Front Desk"
                     Text(
                         text = "$greeting, $displayName 👋",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -156,10 +160,10 @@ fun ReceptionHomeScreen(
                     onClick = onNewWalkInClick,
                     colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)
                 ) {
                     Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text("+ Walk-In", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -170,7 +174,7 @@ fun ReceptionHomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Arrived",
@@ -183,7 +187,7 @@ fun ReceptionHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.ARRIVED) null else QueueStatus.ARRIVED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Waiting",
@@ -196,13 +200,13 @@ fun ReceptionHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.WAITING) null else QueueStatus.WAITING
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "In Triage",
@@ -215,7 +219,7 @@ fun ReceptionHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.IN_PROGRESS) null else QueueStatus.IN_PROGRESS
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     StatCard(
                         title = "Completed",
@@ -228,7 +232,7 @@ fun ReceptionHomeScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == QueueStatus.COMPLETED) null else QueueStatus.COMPLETED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
             }
@@ -439,7 +443,8 @@ fun ReceptionPatientCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 6.dp)
                 ) {
                     Surface(
                         color = MedRayBlueLight,
@@ -450,7 +455,9 @@ fun ReceptionPatientCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MedRayBluePrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                         )
                     }
 
@@ -460,7 +467,7 @@ fun ReceptionPatientCard(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             Icon(
                                 Icons.Outlined.Schedule,
@@ -474,7 +481,9 @@ fun ReceptionPatientCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Slate600,
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -590,23 +599,26 @@ fun ReceptionPatientCard(
             // Action Buttons Bar
             Spacer(modifier = Modifier.height(12.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
             ) {
                 OutlinedButton(
                     onClick = onRecordVitalsClick,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MedRayBluePrimary),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxHeight()
                 ) {
                     Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = MedRayBluePrimary)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (entry.vitals.hasAnyReading()) "Vitals" else "+ Vitals",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -615,33 +627,32 @@ fun ReceptionPatientCard(
                         onClick = onViewPrescriptionClick,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("View Rx", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("View Rx", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 } else if (entry.advancePaidTotal > 0) {
-                    // Already collected pre-visit (Collect Fee recorded a real
-                    // AdvancePayment) — showing the same "Collect Fee" button
-                    // again with no visible change after a successful payment
-                    // was exactly why this looked like it "did nothing".
                     Surface(
                         color = Color(0xFFECFDF5),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = StatusSuccessText, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "₹${entry.advancePaidTotal.toInt()} Collected",
+                                "₹${entry.advancePaidTotal.toInt()} Paid",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = StatusSuccessText
+                                color = StatusSuccessText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -650,12 +661,12 @@ fun ReceptionPatientCard(
                         onClick = onCollectPaymentClick,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Collect Fee", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Collect Fee", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
@@ -664,7 +675,8 @@ fun ReceptionPatientCard(
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF15803D)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC)),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxHeight()
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF16A34A))
                 }
@@ -673,8 +685,9 @@ fun ReceptionPatientCard(
                     IconButton(
                         onClick = { onStatusChange(QueueStatus.ARRIVED) },
                         modifier = Modifier
+                            .fillMaxHeight()
                             .background(Color(0xFFDCFCE7), RoundedCornerShape(10.dp))
-                            .size(36.dp)
+                            .width(36.dp)
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = "Mark Arrived", tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }
@@ -711,14 +724,19 @@ fun AddToQueueForPatientDialog(
         else patient.fullName.take(2).uppercase()
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = PureWhite,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp)
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 480.dp)
+                .imePadding()
+                .padding(vertical = 16.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -988,14 +1006,19 @@ fun WalkInRegisterDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = PureWhite,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp)
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 480.dp)
+                .imePadding()
+                .padding(vertical = 16.dp)
         ) {
             Column(
                 modifier = Modifier

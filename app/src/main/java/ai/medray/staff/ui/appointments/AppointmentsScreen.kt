@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.Appointment
@@ -126,7 +127,9 @@ fun AppointmentsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Scheduled",
@@ -139,7 +142,9 @@ fun AppointmentsScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == AppointmentStatus.SCHEDULED) null else AppointmentStatus.SCHEDULED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     StatCard(
                         title = "Checked In",
@@ -152,13 +157,17 @@ fun AppointmentsScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == AppointmentStatus.CHECKED_IN) null else AppointmentStatus.CHECKED_IN
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Completed",
@@ -171,7 +180,9 @@ fun AppointmentsScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == AppointmentStatus.COMPLETED) null else AppointmentStatus.COMPLETED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     StatCard(
                         title = "Cancelled",
@@ -184,7 +195,9 @@ fun AppointmentsScreen(
                         onClick = {
                             selectedStatusFilter = if (selectedStatusFilter == AppointmentStatus.CANCELLED) null else AppointmentStatus.CANCELLED
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
@@ -410,7 +423,9 @@ fun AppointmentCard(
                         text = patient?.fullName ?: "Scheduled Patient",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Row(
@@ -426,7 +441,9 @@ fun AppointmentCard(
                         Text(
                             text = demo.joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
-                            color = Slate500
+                            color = Slate500,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -446,7 +463,9 @@ fun AppointmentCard(
                                 text = "Dr. ${appointment.doctor.fullName}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MedRayBlueDark
+                                color = MedRayBlueDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -459,18 +478,28 @@ fun AppointmentCard(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                 ) {
                     Button(
                         onClick = onCheckIn,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1.2f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .fillMaxHeight()
                     ) {
                         Icon(Icons.Filled.HowToReg, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Check In to Queue", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Check In to Queue",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
                     OutlinedButton(
@@ -478,10 +507,18 @@ fun AppointmentCard(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(0.8f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .weight(0.8f)
+                            .fillMaxHeight()
                     ) {
-                        Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Cancel",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

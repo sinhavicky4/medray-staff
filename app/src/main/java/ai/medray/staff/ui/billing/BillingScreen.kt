@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.Invoice
@@ -114,7 +115,9 @@ fun BillingScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                 ) {
                     StatCard(
                         title = "Total Collected",
@@ -125,7 +128,9 @@ fun BillingScreen(
                         iconTint = Color(0xFF16A34A),
                         isSelected = selectedFilter == "PAID",
                         onClick = { selectedFilter = if (selectedFilter == "PAID") "ALL" else "PAID" },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     StatCard(
                         title = "Pending Due",
@@ -136,7 +141,9 @@ fun BillingScreen(
                         iconTint = Color(0xFFD97706),
                         isSelected = selectedFilter == "PENDING",
                         onClick = { selectedFilter = if (selectedFilter == "PENDING") "ALL" else "PENDING" },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
@@ -273,7 +280,10 @@ fun InvoiceCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
+                ) {
                     Surface(
                         color = MedRayBlueLight,
                         shape = RoundedCornerShape(6.dp)
@@ -283,6 +293,8 @@ fun InvoiceCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MedRayBluePrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
@@ -316,12 +328,14 @@ fun InvoiceCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(
                         text = patient?.fullName ?: "OPD Patient",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -329,10 +343,22 @@ fun InvoiceCard(
                         modifier = Modifier.padding(top = 2.dp)
                     ) {
                         if (!patient?.uhid.isNullOrBlank()) {
-                            Text(text = "UHID: ${patient?.uhid}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                            Text(
+                                text = "UHID: ${patient?.uhid}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate500,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                         if (!patient?.phone.isNullOrBlank()) {
-                            Text(text = "· 📞 +91 ${patient?.phone}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                            Text(
+                                text = "· 📞 +91 ${patient?.phone}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate500,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -364,7 +390,13 @@ fun InvoiceCard(
                 ) {
                     Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Collect ₹${invoice.total.toInt()} via UPI QR", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Collect ₹${invoice.total.toInt()} via UPI QR",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

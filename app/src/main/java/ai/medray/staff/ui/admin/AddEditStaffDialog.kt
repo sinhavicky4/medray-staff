@@ -1,7 +1,9 @@
 package ai.medray.staff.ui.admin
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -9,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.User
 import ai.medray.staff.data.model.UserRole
 import ai.medray.staff.ui.theme.*
@@ -50,6 +53,10 @@ fun AddEditStaffDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isBusy) onDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
+            .widthIn(max = 480.dp),
         title = {
             Text(
                 if (existing != null) "Edit Staff Member" else "Add Staff Member",
@@ -59,7 +66,12 @@ fun AddEditStaffDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+            ) {
                 OutlinedTextField(
                     value = fullName,
                     onValueChange = { fullName = it },
