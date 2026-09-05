@@ -455,6 +455,14 @@ fun StaffAppNavHost(
     var showBookAppointmentDialog by remember { mutableStateOf(false) }
     var preselectedPatientForAppointment by remember { mutableStateOf<Patient?>(null) }
     var bookAppointmentBusy by remember { mutableStateOf(false) }
+    var patientDetailDocuments by remember { mutableStateOf<List<PatientDocument>>(emptyList()) }
+    var patientDetailDocumentsLoading by remember { mutableStateOf(false) }
+    var showUploadDocumentDialog by remember { mutableStateOf(false) }
+    var uploadDocTargetPatient by remember { mutableStateOf<Patient?>(null) }
+    var uploadDocTargetVisitId by remember { mutableStateOf<String?>(null) }
+    var uploadDocInitialKind by remember { mutableStateOf("REPORT") }
+    var uploadDocBusy by remember { mutableStateOf(false) }
+    var uploadDocError by remember { mutableStateOf<String?>(null) }
 
     // Chat Assistant state — hydrated from the server-persisted thread the
     // first time Screen.Chat is visited each session (same pattern as web's
@@ -921,7 +929,16 @@ fun StaffAppNavHost(
                                 }
                             },
                             onScanDocumentClick = { entry ->
-                                Toast.makeText(context, "Document Scanner opened for ${entry.patient?.fullName}", Toast.LENGTH_SHORT).show()
+                                val patient = entry.patient
+                                if (patient != null) {
+                                    uploadDocTargetPatient = patient
+                                    uploadDocTargetVisitId = null
+                                    uploadDocInitialKind = "REPORT"
+                                    uploadDocError = null
+                                    showUploadDocumentDialog = true
+                                } else {
+                                    Toast.makeText(context, "Patient details not loaded", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             onStatusChange = { entry, newStatus ->
                                 queueEntries = queueEntries.map { if (it.id == entry.id) it.copy(status = newStatus) else it }
@@ -1015,10 +1032,17 @@ fun StaffAppNavHost(
                             patientDetailTarget = patient
                             patientDetailVisits = emptyList()
                             patientDetailVisitsLoading = true
+                            patientDetailDocuments = emptyList()
+                            patientDetailDocumentsLoading = true
                             coroutineScope.launch {
                                 val res = visitRepo.getPatientVisits(patient.id)
                                 patientDetailVisits = res.getOrDefault(emptyList())
                                 patientDetailVisitsLoading = false
+                            }
+                            coroutineScope.launch {
+                                val res = patientRepo.listDocuments(patient.id)
+                                patientDetailDocuments = res.getOrDefault(emptyList())
+                                patientDetailDocumentsLoading = false
                             }
                         },
                         onRegisterPatientClick = { showWalkInDialog = true },
@@ -1552,6 +1576,8 @@ fun StaffAppNavHost(
             patient = patient,
             visits = patientDetailVisits,
             visitsLoading = patientDetailVisitsLoading,
+            documents = patientDetailDocuments,
+            documentsLoading = patientDetailDocumentsLoading,
             onDismiss = { patientDetailTarget = null },
             onAddToQueueClick = {
                 patientDetailTarget = null
@@ -1562,6 +1588,93 @@ fun StaffAppNavHost(
                 patientDetailTarget = null
                 preselectedPatientForAppointment = patient
                 showBookAppointmentDialog = true
+            },
+            onUploadDocumentClick = {
+                uploadDocTargetPatient = patient
+                uploadDocTargetVisitId = null
+                uploadDocInitialKind = "REPORT"
+                uploadDocError = null
+                showUploadDocumentDialog = true
+            },
+            onViewDocumentClick = { doc ->
+                val url = doc.displayUrl
+                if (url.isNotBlank()) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Could not open document viewer: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Document URL not available", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteDocumentClick = { doc ->
+                coroutineScope.launch {
+                    val res = patientRepo.deleteDocument(doc.id)
+                    if (res.isSuccess) {
+                        patientDetailDocuments = patientDetailDocuments.filter { it.id != doc.id }
+                        Toast.makeText(context, "Document deleted", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val err = res.exceptionOrNull()?.message ?: "Failed to delete document"
+                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showUploadDocumentDialog && uploadDocTargetPatient != null) {
+        UploadDocumentDialog(
+            patient = uploadDocTargetPatient!!,
+            initialKind = uploadDocInitialKind,
+            visitId = uploadDocTargetVisitId,
+            isUploading = uploadDocBusy,
+            uploadError = uploadDocError,
+            onDismiss = {
+                if (!uploadDocBusy) {
+                    showUploadDocumentDialog = false
+                    uploadDocTargetPatient = null
+                    uploadDocTargetVisitId = null
+                    uploadDocError = null
+                }
+            },
+            onUpload = { selectedFile, kind, notes ->
+                uploadDocBusy = true
+                uploadDocError = null
+                val targetPat = uploadDocTargetPatient!!
+                val targetVisit = uploadDocTargetVisitId
+                coroutineScope.launch {
+                    val res = patientRepo.uploadDocument(
+                        patientId = targetPat.id,
+                        bytes = selectedFile.bytes,
+                        fileName = selectedFile.name,
+                        mimeType = selectedFile.mimeType,
+                        kind = kind,
+                        visitId = targetVisit,
+                        notes = notes
+                    )
+                    uploadDocBusy = false
+                    if (res.isSuccess) {
+                        val uploadedDoc = res.getOrNull()
+                        showUploadDocumentDialog = false
+                        uploadDocTargetPatient = null
+                        uploadDocTargetVisitId = null
+                        Toast.makeText(context, "Document \"${selectedFile.name}\" uploaded successfully!", Toast.LENGTH_LONG).show()
+
+                        // If patient details dialog is open for this patient, update documents
+                        if (patientDetailTarget?.id == targetPat.id) {
+                            if (uploadedDoc != null) {
+                                patientDetailDocuments = listOf(uploadedDoc) + patientDetailDocuments
+                            } else {
+                                val docRes = patientRepo.listDocuments(targetPat.id)
+                                patientDetailDocuments = docRes.getOrDefault(emptyList())
+                            }
+                        }
+                    } else {
+                        uploadDocError = res.exceptionOrNull()?.message ?: "Failed to upload document"
+                    }
+                }
             }
         )
     }

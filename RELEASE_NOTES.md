@@ -1,3 +1,9 @@
+# MedRay Staff Version 0.5.2 Release Notes
+
+- **📄 Patient Document & Lab Report Upload (Web & Camera Support)**: Upload and attach diagnostic lab reports, referral letters, and scanned prescriptions directly from the mobile app. Supports both device file browsing (PDF, PNG, JPEG, WebP) and high-resolution camera document scanning with automatic JPEG downsampling. Accessible via "Scan Lab" in Nurse Triage and the new "Documents" tab in Patient Details with in-app view and delete capabilities.
+- **📅 Direct Appointment Scheduling**: Full appointment booking flow integrated directly into the Staff app. Supports instant directory lookup of existing patients as well as seamless inline registration for new walk-in patients. Features clinic doctor picker, Material 3 DatePickerDialog, TimePickerDialog with quick slot chips, and UTC ISO-8601 formatting.
+- **🏷️ Branding Update ("MedRay AI Staff")**: Centralized brand naming in `BrandConfig.kt` and updated the app title to "MedRay AI Staff".
+
 # MedRay Staff Version 0.5.1 Release Notes
 
 - **📝 Two-Step Clinic Registration Onboarding**: Redesigned the clinic signup screen into an intuitive two-step onboarding wizard. Step 1 focuses on clinic profile details (with Google Places address autocomplete) and Step 2 captures Clinic Admin credentials. Includes animated transitions, step progress tracking, and hardware back-button preservation.

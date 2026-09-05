@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backing paths for the FileProvider used to hand a camera-capture output
+     Uri to the system Camera app (ActivityResultContracts.TakePicture).
+     Only the app's own cache dir is exposed, and only to whichever app the
+     capture intent is granted to (FLAG_GRANT_WRITE_URI_PERMISSION). -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="captures" path="captures/" />
+</paths>
