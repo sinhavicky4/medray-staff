@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.5.1 Release Notes
+
+- **📝 Two-Step Clinic Registration Onboarding**: Redesigned the clinic signup screen into an intuitive two-step onboarding wizard. Step 1 focuses on clinic profile details (with Google Places address autocomplete) and Step 2 captures Clinic Admin credentials. Includes animated transitions, step progress tracking, and hardware back-button preservation.
+- **📱 Universal Android Device Layout Consistency**: Comprehensive responsive layout hardening across diverse Android screen sizes (from compact ~360dp devices like Redmi Note 7 up to wide ~412dp+ devices like OnePlus). Enforces symmetrical 2x2 StatCard heights via `IntrinsicSize.Min`, prevents patient name badge collisions, aligns card action button clusters, and guarantees soft keyboard adaptability with `.imePadding()`.
+
 # MedRay Staff Version 0.5.0 Release Notes
 
 - **🏥 Clinic Self-Registration ("Sign Up Your Clinic")**: Pre-auth clinic registration directly from the mobile app (reachable from the login screen) with instant onboarding flow and approval status tracking.
