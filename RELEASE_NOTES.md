@@ -1,3 +1,10 @@
+# MedRay Staff Version 0.5.0 Release Notes
+
+- **🏥 Clinic Self-Registration ("Sign Up Your Clinic")**: Pre-auth clinic registration directly from the mobile app (reachable from the login screen) with instant onboarding flow and approval status tracking.
+- **👥 Clinic Admin Staff Management**: Practice admins can now manage their staff roster directly from the mobile app — add Receptionist, Nurse, or Doctor accounts, resend invites and temporary credentials, deactivate, and restore accounts.
+- **📍 Google Places API (New) Address Autocomplete**: Real-time address autocomplete powered by Google Places API (New) over REST, tailored for clinic locations in India with instant resolution to full formatted addresses.
+- **🚀 Automated Release Key Injection**: Integrated Google Places API key provisioning into the automated release build and Firebase App Distribution pipeline.
+
 # MedRay Staff Version 0.4.0 Release Notes
 
 - **🤖 AI Chat Assistant**: New "Chat Assistant" screen (accessible from the menu for clinics with it enabled) — ask it to register a patient, add someone to the queue, record vitals, or book an appointment, review what it proposes, and confirm before anything actually happens.
