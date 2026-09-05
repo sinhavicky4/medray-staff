@@ -542,6 +542,61 @@ class PatientRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun listDocuments(patientId: String): Result<List<PatientDocument>> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.listDocuments(patientId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to load documents"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun uploadDocument(
+        patientId: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        kind: String = "REPORT",
+        visitId: String? = null,
+        notes: String? = null
+    ): Result<PatientDocument> = withContext(Dispatchers.IO) {
+        try {
+            val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", fileName, reqFile)
+            val kindPart = kind.toRequestBody("text/plain".toMediaTypeOrNull())
+            val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                val errMsg = res.errorBody()?.string() ?: "Document upload failed"
+                Result.failure(Exception(errMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteDocument(documentId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.deleteDocument(documentId)
+            if (res.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errMsg = res.errorBody()?.string() ?: "Failed to delete document"
+                Result.failure(Exception(errMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 class AppointmentRepository(private val context: Context) {
@@ -728,19 +783,64 @@ class DocumentRepository(private val context: Context) {
         patientId: String,
         file: File,
         kind: DocumentKind,
+        visitId: String? = null,
         notes: String? = null
     ): Result<PatientDocument> = withContext(Dispatchers.IO) {
         try {
             val reqFile = file.asRequestBody("application/octet-stream".toMediaTypeOrNull())
             val filePart = MultipartBody.Part.createFormData("file", file.name, reqFile)
-            val kindPart = kind.name.toRequestBody("text/plain".toMediaTypeOrNull())
+            val kindPart = kind.serverKind.toRequestBody("text/plain".toMediaTypeOrNull())
+            val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
             val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            val res = api.uploadDocument(patientId, filePart, kindPart, notesPart)
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)
             } else {
-                Result.failure(Exception("Document upload failed"))
+                val errMsg = res.errorBody()?.string() ?: "Document upload failed"
+                Result.failure(Exception(errMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun uploadDocument(
+        patientId: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        kind: String = "REPORT",
+        visitId: String? = null,
+        notes: String? = null
+    ): Result<PatientDocument> = withContext(Dispatchers.IO) {
+        try {
+            val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", fileName, reqFile)
+            val kindPart = kind.toRequestBody("text/plain".toMediaTypeOrNull())
+            val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                val errMsg = res.errorBody()?.string() ?: "Document upload failed"
+                Result.failure(Exception(errMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteDocument(documentId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.deleteDocument(documentId)
+            if (res.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errMsg = res.errorBody()?.string() ?: "Failed to delete document"
+                Result.failure(Exception(errMsg))
             }
         } catch (e: Exception) {
             Result.failure(e)

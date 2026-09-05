@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.verticalScroll
+import ai.medray.staff.core.util.FileUtils
 import ai.medray.staff.data.model.Patient
+import ai.medray.staff.data.model.PatientDocument
 import ai.medray.staff.data.model.Prescription
 import ai.medray.staff.data.model.Visit
 import ai.medray.staff.data.model.formatDateDisplay
@@ -37,7 +39,7 @@ import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
 import ai.medray.staff.ui.theme.*
 
-private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS }
+private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS, DOCUMENTS }
 
 private enum class PatientGenderFilter { ALL, MALE, FEMALE, SENIORS }
 
@@ -55,7 +57,6 @@ fun PatientsScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedFilter by remember { mutableStateOf(PatientGenderFilter.ALL) }
-    var selectedPatientForDetails by remember { mutableStateOf<Patient?>(null) }
 
     val maleCount = patients.count { it.gender.equals("MALE", ignoreCase = true) }
     val femaleCount = patients.count { it.gender.equals("FEMALE", ignoreCase = true) }
@@ -296,7 +297,6 @@ fun PatientsScreen(
                 PatientCard(
                     patient = patient,
                     onClick = {
-                        selectedPatientForDetails = patient
                         onPatientClick(patient)
                     },
                     onAddToQueueClick = {
@@ -310,22 +310,6 @@ fun PatientsScreen(
         }
     }
 }
-
-    // Patient Details Modal Dialog
-    selectedPatientForDetails?.let { patient ->
-        PatientDetailsDialog(
-            patient = patient,
-            onDismiss = { selectedPatientForDetails = null },
-            onAddToQueueClick = {
-                selectedPatientForDetails = null
-                onAddToQueueClick(patient)
-            },
-            onBookAppointmentClick = {
-                selectedPatientForDetails = null
-                onBookAppointmentClick(patient)
-            }
-        )
-    }
 }
 
 @Composable
@@ -506,9 +490,14 @@ fun PatientDetailsDialog(
     patient: Patient,
     visits: List<Visit> = emptyList(),
     visitsLoading: Boolean = false,
+    documents: List<PatientDocument> = emptyList(),
+    documentsLoading: Boolean = false,
     onDismiss: () -> Unit,
     onAddToQueueClick: () -> Unit = {},
-    onBookAppointmentClick: () -> Unit = {}
+    onBookAppointmentClick: () -> Unit = {},
+    onUploadDocumentClick: () -> Unit = {},
+    onDeleteDocumentClick: (PatientDocument) -> Unit = {},
+    onViewDocumentClick: (PatientDocument) -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -582,10 +571,14 @@ fun PatientDetailsDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
                     QuickFilterPill(label = "Overview", isSelected = tab == PatientDetailTab.OVERVIEW, onClick = { tab = PatientDetailTab.OVERVIEW })
                     QuickFilterPill(label = "Visits (${visits.size})", isSelected = tab == PatientDetailTab.VISITS, onClick = { tab = PatientDetailTab.VISITS })
                     QuickFilterPill(label = "Prescriptions (${prescriptions.size})", isSelected = tab == PatientDetailTab.PRESCRIPTIONS, onClick = { tab = PatientDetailTab.PRESCRIPTIONS })
+                    QuickFilterPill(label = "Documents (${documents.size})", isSelected = tab == PatientDetailTab.DOCUMENTS, onClick = { tab = PatientDetailTab.DOCUMENTS })
                 }
 
                 HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
@@ -636,6 +629,70 @@ fun PatientDetailsDialog(
                             } else {
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     prescriptions.forEach { (rx, visit) -> PrescriptionSummaryCard(rx, visit) }
+                                }
+                            }
+                        }
+
+                        PatientDetailTab.DOCUMENTS -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Attachments & Reports",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate800
+                                    )
+                                    OutlinedButton(
+                                        onClick = onUploadDocumentClick,
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MedRayBluePrimary),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = MedRayBluePrimary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Upload", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MedRayBluePrimary)
+                                    }
+                                }
+
+                                if (documentsLoading) {
+                                    Text("Loading documents…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                                } else if (documents.isEmpty()) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 24.dp)
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = Slate300, modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text("No documents uploaded yet.", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Button(
+                                                onClick = onUploadDocumentClick,
+                                                colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Upload Document", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    documents.forEach { doc ->
+                                        PatientDocumentCard(
+                                            document = doc,
+                                            onViewClick = { onViewDocumentClick(doc) },
+                                            onDeleteClick = { onDeleteDocumentClick(doc) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -778,5 +835,153 @@ private fun InfoRow(label: String, value: String) {
     ) {
         Text(text = label, style = MaterialTheme.typography.bodySmall, color = Slate500)
         Text(text = value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Slate900)
+    }
+}
+
+@Composable
+fun PatientDocumentCard(
+    document: PatientDocument,
+    onViewClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    val isPdf = document.mimeType?.contains("pdf", ignoreCase = true) == true ||
+            document.fileName.endsWith(".pdf", ignoreCase = true)
+
+    val kindLabel = when (document.effectiveKind) {
+        "REPORT" -> "Lab Report"
+        "PRESCRIPTION" -> "Prescription"
+        else -> "General Doc"
+    }
+
+    val kindBg = when (document.effectiveKind) {
+        "REPORT" -> Color(0xFFF0FDFA)
+        "PRESCRIPTION" -> Color(0xFFFFFBEB)
+        else -> Color(0xFFEFF6FF)
+    }
+
+    val kindText = when (document.effectiveKind) {
+        "REPORT" -> MedRayTealDark
+        "PRESCRIPTION" -> Color(0xFFB45309)
+        else -> MedRayBluePrimary
+    }
+
+    Surface(
+        color = PureWhite,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isPdf) Color(0xFFFEE2E2) else Color(0xFFEFF6FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPdf) Icons.Filled.PictureAsPdf else Icons.Filled.Image,
+                        contentDescription = null,
+                        tint = if (isPdf) Color(0xFFDC2626) else MedRayBluePrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = document.fileName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = kindBg,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = kindLabel,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = kindText,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = FileUtils.formatFileSize(document.displaySize),
+                            fontSize = 11.sp,
+                            color = Slate500
+                        )
+                        if (!document.createdAt.isBlank()) {
+                            Text(
+                                text = " · ${formatIsoDateTimeLocal(document.createdAt)}",
+                                fontSize = 11.sp,
+                                color = Slate400,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!document.notes.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = document.notes,
+                    fontSize = 11.sp,
+                    color = Slate600,
+                    modifier = Modifier.padding(start = 50.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = Slate100)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (document.displayUrl.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = onViewClick,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Icon(Icons.Outlined.Visibility, contentDescription = null, modifier = Modifier.size(14.dp), tint = MedRayBluePrimary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("View", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MedRayBluePrimary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFDC2626))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFDC2626))
+                }
+            }
+        }
     }
 }
