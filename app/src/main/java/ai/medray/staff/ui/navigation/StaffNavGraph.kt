@@ -1,5 +1,6 @@
 package ai.medray.staff.ui.navigation
 
+import ai.medray.staff.core.config.BrandConfig
 import ai.medray.staff.ui.common.PrescriptionViewerDialog
 
 import android.app.Activity
@@ -626,7 +627,7 @@ fun StaffAppNavHost(
         Screen.Profile.route -> "Staff Profile"
         Screen.Chat.route -> "Chat Assistant"
         Screen.StaffManagement.route -> "Staff Management"
-        else -> "MedRay Staff"
+        else -> BrandConfig.APP_NAME
     }
     val screenSubtitle = if (currentRoute == Screen.Chat.route) chatAssistantName else (currentUser?.clinic?.name ?: "Main Clinic")
 

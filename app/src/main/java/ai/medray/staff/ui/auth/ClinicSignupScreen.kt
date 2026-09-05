@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.R
+import ai.medray.staff.core.config.BrandConfig
 import ai.medray.staff.data.repository.PlacesAutocompleteRepository
 import ai.medray.staff.ui.common.AddressAutocompleteField
 import ai.medray.staff.ui.common.WavyBackground
@@ -139,7 +140,7 @@ fun ClinicSignupScreen(
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "MedRay Staff",
+                    BrandConfig.APP_NAME,
                     fontFamily = HeadingFontFamily,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,

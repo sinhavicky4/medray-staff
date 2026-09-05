@@ -1,5 +1,6 @@
 package ai.medray.staff.ui.auth
 
+import ai.medray.staff.core.config.BrandConfig
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -136,7 +137,7 @@ fun LoginScreen(
 
                 Column {
                     Text(
-                        "MedRay Staff",
+                        BrandConfig.APP_NAME,
                         fontFamily = HeadingFontFamily,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,

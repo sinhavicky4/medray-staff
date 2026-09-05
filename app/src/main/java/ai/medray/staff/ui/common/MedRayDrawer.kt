@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.BuildConfig
+import ai.medray.staff.core.config.BrandConfig
 import ai.medray.staff.data.model.User
 import ai.medray.staff.ui.theme.*
 
@@ -135,7 +136,7 @@ fun MedRayDrawerContent(
 
                 Column {
                     Text(
-                        text = "MedRay AI Staff",
+                        text = BrandConfig.APP_NAME,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Slate900
