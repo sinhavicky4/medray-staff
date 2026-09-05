@@ -4,7 +4,7 @@ Code-verified as of 2026-08-28, against `medray-staff/app/src/main/java/ai/medra
 
 ## 1. What This App Is
 
-A native Android app, package `ai.medray.staff` (Kotlin 2.0, Jetpack Compose + Material3, `minSdk 26`), current version **0.5.1**. Built for **Nurses** (fast one-handed vitals triage) and **Receptionists** (walk-in registration, UPI billing, appointment check-in), offline-first. This is a real, actively-developed app (~7,300 lines of Kotlin, 32 commits, genuine production bug-fix history in `RELEASE_NOTES.md`) shipping via CI to a Firebase App Distribution pilot group — **not** on the Google Play Store.
+A native Android app, package `ai.medray.staff` (Kotlin 2.0, Jetpack Compose + Material3, `minSdk 26`), current version **0.5.2**. Built for **Nurses** (fast one-handed vitals triage) and **Receptionists** (walk-in registration, UPI billing, appointment check-in), offline-first. This is a real, actively-developed app (~7,300 lines of Kotlin, 32 commits, genuine production bug-fix history in `RELEASE_NOTES.md`) shipping via CI to a Firebase App Distribution pilot group — **not** on the Google Play Store.
 
 ## 2. Architecture
 
