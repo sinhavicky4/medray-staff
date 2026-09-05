@@ -36,6 +36,7 @@ import ai.medray.staff.data.model.*
 import ai.medray.staff.data.network.*
 import ai.medray.staff.data.repository.*
 import ai.medray.staff.ui.appointments.AppointmentsScreen
+import ai.medray.staff.ui.appointments.BookAppointmentDialog
 import ai.medray.staff.ui.splash.SplashScreen
 import ai.medray.staff.ui.auth.LoginScreen
 import ai.medray.staff.ui.auth.OtpVerificationScreen
@@ -451,6 +452,9 @@ fun StaffAppNavHost(
     var patientDetailTarget by remember { mutableStateOf<Patient?>(null) }
     var patientDetailVisits by remember { mutableStateOf<List<Visit>>(emptyList()) }
     var patientDetailVisitsLoading by remember { mutableStateOf(false) }
+    var showBookAppointmentDialog by remember { mutableStateOf(false) }
+    var preselectedPatientForAppointment by remember { mutableStateOf<Patient?>(null) }
+    var bookAppointmentBusy by remember { mutableStateOf(false) }
 
     // Chat Assistant state — hydrated from the server-persisted thread the
     // first time Screen.Chat is visited each session (same pattern as web's
@@ -1021,6 +1025,10 @@ fun StaffAppNavHost(
                         onAddToQueueClick = { patient ->
                             selectedPatientForDirectQueue = patient
                             showAddToQueueDialog = true
+                        },
+                        onBookAppointmentClick = { patient ->
+                            preselectedPatientForAppointment = patient
+                            showBookAppointmentDialog = true
                         }
                     )
                 }
@@ -1031,6 +1039,10 @@ fun StaffAppNavHost(
                         appointments = appointmentsList,
                         isRefreshing = isRefreshing,
                         onRefresh = { refreshAllData() },
+                        onBookAppointmentClick = {
+                            preselectedPatientForAppointment = null
+                            showBookAppointmentDialog = true
+                        },
                         onCheckInClick = { appt ->
                             coroutineScope.launch {
                                 val res = appointmentRepo.checkIn(appt.id, null)
@@ -1309,6 +1321,92 @@ fun StaffAppNavHost(
         )
     }
 
+    if (showBookAppointmentDialog) {
+        BookAppointmentDialog(
+            doctors = doctors,
+            existingPatients = patientsList,
+            initialPatient = preselectedPatientForAppointment,
+            isBusy = bookAppointmentBusy,
+            onDismiss = {
+                showBookAppointmentDialog = false
+                preselectedPatientForAppointment = null
+            },
+            onBookExisting = { patient, doctorId, scheduledAtIso, durationMinutes, chiefComplaint, visitType ->
+                bookAppointmentBusy = true
+                coroutineScope.launch {
+                    val req = BookAppointmentRequest(
+                        patientId = patient.id,
+                        doctorId = doctorId,
+                        scheduledAt = scheduledAtIso,
+                        durationMinutes = durationMinutes,
+                        chiefComplaint = chiefComplaint,
+                        visitType = visitType
+                    )
+                    val res = appointmentRepo.createAppointment(req)
+                    bookAppointmentBusy = false
+                    if (res.isSuccess) {
+                        showBookAppointmentDialog = false
+                        preselectedPatientForAppointment = null
+                        Toast.makeText(
+                            context,
+                            "Appointment scheduled for ${patient.fullName}!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        refreshAllData()
+                    } else {
+                        val errMsg = res.exceptionOrNull()?.message ?: "Failed to schedule appointment"
+                        Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onBookNew = { patientName, phone, age, gender, doctorId, scheduledAtIso, durationMinutes, chiefComplaint, visitType ->
+                bookAppointmentBusy = true
+                coroutineScope.launch {
+                    val formattedPhone = if (phone.startsWith("+91")) phone else "+91$phone"
+                    val pRes = patientRepo.registerPatient(
+                        RegisterPatientRequest(
+                            fullName = patientName,
+                            phone = formattedPhone,
+                            age = age,
+                            gender = gender
+                        )
+                    )
+                    val finalPatient = pRes.getOrNull() ?: patientRepo.searchPatients(phone).getOrNull()?.firstOrNull()
+
+                    if (finalPatient != null) {
+                        val req = BookAppointmentRequest(
+                            patientId = finalPatient.id,
+                            doctorId = doctorId,
+                            scheduledAt = scheduledAtIso,
+                            durationMinutes = durationMinutes,
+                            chiefComplaint = chiefComplaint,
+                            visitType = visitType
+                        )
+                        val res = appointmentRepo.createAppointment(req)
+                        bookAppointmentBusy = false
+                        if (res.isSuccess) {
+                            showBookAppointmentDialog = false
+                            preselectedPatientForAppointment = null
+                            Toast.makeText(
+                                context,
+                                "Patient registered & appointment scheduled for ${finalPatient.fullName}!",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            refreshAllData()
+                        } else {
+                            val errMsg = res.exceptionOrNull()?.message ?: "Failed to schedule appointment"
+                            Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        bookAppointmentBusy = false
+                        val errMsg = pRes.exceptionOrNull()?.message ?: "Failed to register patient"
+                        Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+    }
+
     upiModalData?.let { data ->
         DynamicUpiQrDialog(
             payeeVpa = data.payeeVpa,
@@ -1459,6 +1557,11 @@ fun StaffAppNavHost(
                 patientDetailTarget = null
                 selectedPatientForDirectQueue = patient
                 showAddToQueueDialog = true
+            },
+            onBookAppointmentClick = {
+                patientDetailTarget = null
+                preselectedPatientForAppointment = patient
+                showBookAppointmentDialog = true
             }
         )
     }

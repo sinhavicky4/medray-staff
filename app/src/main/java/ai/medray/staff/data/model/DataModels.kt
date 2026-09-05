@@ -65,6 +65,15 @@ fun formatIsoTimeLocal(iso: String?): String {
     }
 }
 
+/**
+ * Converts a local calendar date and clock time into an ISO-8601 UTC instant
+ * string (e.g. "2026-09-05T10:30:00Z") expected by POST /api/appointments.
+ */
+fun formatToIsoUtc(date: LocalDate, hour: Int, minute: Int, zoneId: ZoneId = ZoneId.systemDefault()): String {
+    val zonedDateTime = date.atTime(hour, minute).atZone(zoneId)
+    return DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant())
+}
+
 enum class UserRole {
     SUPER_ADMIN,
     CLINIC_ADMIN,

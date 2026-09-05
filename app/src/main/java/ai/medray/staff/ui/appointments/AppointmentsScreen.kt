@@ -39,6 +39,7 @@ fun AppointmentsScreen(
     appointments: List<Appointment>,
     onCheckInClick: (Appointment) -> Unit,
     onCancelClick: (Appointment) -> Unit,
+    onBookAppointmentClick: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -110,14 +111,41 @@ fun AppointmentsScreen(
                     }
                 }
 
-                IconButton(
-                    onClick = onRefresh,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .background(PureWhite, RoundedCornerShape(10.dp))
-                        .border(1.dp, Slate200, RoundedCornerShape(10.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = MedRayBluePrimary, modifier = Modifier.size(18.dp))
+                    Button(
+                        onClick = onBookAppointmentClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = PureWhite
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Book",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PureWhite
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onRefresh,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(PureWhite, RoundedCornerShape(10.dp))
+                            .border(1.dp, Slate200, RoundedCornerShape(10.dp))
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = MedRayBluePrimary, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
@@ -297,6 +325,17 @@ fun AppointmentsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = Slate400
                         )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = onBookAppointmentClick,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = PureWhite)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Schedule an Appointment", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = PureWhite)
+                        }
                     }
                 }
             }

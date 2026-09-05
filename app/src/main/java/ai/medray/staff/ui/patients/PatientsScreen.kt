@@ -49,6 +49,7 @@ fun PatientsScreen(
     onPatientClick: (Patient) -> Unit,
     onRegisterPatientClick: () -> Unit,
     onAddToQueueClick: (Patient) -> Unit = {},
+    onBookAppointmentClick: (Patient) -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -300,6 +301,9 @@ fun PatientsScreen(
                     },
                     onAddToQueueClick = {
                         onAddToQueueClick(patient)
+                    },
+                    onBookAppointmentClick = {
+                        onBookAppointmentClick(patient)
                     }
                 )
             }
@@ -315,6 +319,10 @@ fun PatientsScreen(
             onAddToQueueClick = {
                 selectedPatientForDetails = null
                 onAddToQueueClick(patient)
+            },
+            onBookAppointmentClick = {
+                selectedPatientForDetails = null
+                onBookAppointmentClick(patient)
             }
         )
     }
@@ -324,7 +332,8 @@ fun PatientsScreen(
 fun PatientCard(
     patient: Patient,
     onClick: () -> Unit,
-    onAddToQueueClick: () -> Unit = {}
+    onAddToQueueClick: () -> Unit = {},
+    onBookAppointmentClick: () -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -442,7 +451,27 @@ fun PatientCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Quick Book Appointment action button
+            IconButton(
+                onClick = onBookAppointmentClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Slate100,
+                    contentColor = Slate700
+                ),
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            ) {
+                Icon(
+                    Icons.Filled.CalendarToday,
+                    contentDescription = "Book Appointment",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
 
             // Quick Add to Queue action button
             IconButton(
@@ -478,7 +507,8 @@ fun PatientDetailsDialog(
     visits: List<Visit> = emptyList(),
     visitsLoading: Boolean = false,
     onDismiss: () -> Unit,
-    onAddToQueueClick: () -> Unit = {}
+    onAddToQueueClick: () -> Unit = {},
+    onBookAppointmentClick: () -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -615,26 +645,36 @@ fun PatientDetailsDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.9f)
                     ) {
                         Text("Close")
+                    }
+
+                    OutlinedButton(
+                        onClick = onBookAppointmentClick,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.2f)
+                    ) {
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = MedRayBluePrimary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Book Appt", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
 
                     Button(
                         onClick = onAddToQueueClick,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.4f)
+                        modifier = Modifier.weight(1.2f)
                     ) {
                         Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add to Queue", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Queue", fontWeight = FontWeight.Bold)
                     }
                 }
             }
