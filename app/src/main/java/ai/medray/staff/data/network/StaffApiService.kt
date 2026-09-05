@@ -429,7 +429,8 @@ interface StaffApiService {
     suspend fun uploadDocument(
         @Path("patientId") patientId: String,
         @Part file: MultipartBody.Part,
-        @Part("documentKind") documentKind: RequestBody,
+        @Part("kind") kind: RequestBody,
+        @Part("visitId") visitId: RequestBody? = null,
         @Part("notes") notes: RequestBody? = null
     ): Response<PatientDocument>
 

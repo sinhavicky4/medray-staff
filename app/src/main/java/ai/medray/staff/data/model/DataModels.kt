@@ -123,12 +123,21 @@ enum class PaymentMethod {
 }
 
 enum class DocumentKind {
+    REPORT,
+    GENERAL,
+    PRESCRIPTION,
     LAB_REPORT,
     RADIOLOGY,
-    PRESCRIPTION,
     DISCHARGE_SUMMARY,
     INSURANCE,
-    OTHER
+    OTHER;
+
+    val serverKind: String
+        get() = when (this) {
+            REPORT, LAB_REPORT, RADIOLOGY -> "REPORT"
+            PRESCRIPTION -> "PRESCRIPTION"
+            else -> "GENERAL"
+        }
 }
 
 data class Clinic(
@@ -345,13 +354,27 @@ data class PatientDocument(
     val id: String,
     val patientId: String,
     val clinicId: String,
+    val visitId: String? = null,
+    val kind: String? = "REPORT",
     val documentKind: DocumentKind = DocumentKind.LAB_REPORT,
-    val fileUrl: String,
+    val fileUrl: String? = null,
+    val url: String? = null,
     val fileName: String,
     val fileSize: Long? = null,
+    val sizeBytes: Long? = null,
     val mimeType: String? = null,
     val notes: String? = null,
-    val createdAt: String
+    val createdAt: String,
+    val uploadedBy: UploadedBySummary? = null
+) : Serializable {
+    val displayUrl: String get() = url ?: fileUrl ?: ""
+    val displaySize: Long get() = sizeBytes ?: fileSize ?: 0L
+    val effectiveKind: String get() = kind ?: documentKind.serverKind
+}
+
+data class UploadedBySummary(
+    val id: String? = null,
+    val fullName: String? = null
 ) : Serializable
 
 data class SelfCheckIn(
