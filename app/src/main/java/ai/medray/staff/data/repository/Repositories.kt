@@ -1023,11 +1023,27 @@ class ChatRepository(private val context: Context) {
  * stale cached clinical reading shown as current is a worse failure mode
  * than a clear "couldn't load" error.
  */
+/** Ward Home's sync-status banner — see IpdRepository.getOutboxSyncStatus(). */
+data class IpdOutboxSyncStatus(val pendingCount: Int, val failedCount: Int) {
+    val hasAnything: Boolean get() = pendingCount > 0 || failedCount > 0
+}
+
 class IpdRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
     private val db = StaffDatabase.getDatabase(context)
     private val outbox = OutboxManager(context)
     private val cookieJar = ApiClient.getCookieJar(context)
+
+    // Vitals/nursing-note/medication-administration writes fall back to the
+    // Outbox on failure (see OutboxManager/OutboxSyncWorker) — this backs
+    // Ward Home's banner so a nurse can see writes are waiting (or have
+    // permanently failed) to sync, instead of believing they all saved.
+    suspend fun getOutboxSyncStatus(): IpdOutboxSyncStatus = withContext(Dispatchers.IO) {
+        IpdOutboxSyncStatus(
+            pendingCount = db.outboxDao().getPendingCount(),
+            failedCount = db.outboxDao().getFailedCount(),
+        )
+    }
 
     fun getLocalAdmissions(clinicId: String): Flow<List<IpdAdmission>> =
         db.ipdAdmissionDao().getAdmissions(clinicId).map { entities -> entities.map { it.toDomain() } }

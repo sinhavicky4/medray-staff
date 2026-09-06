@@ -12,7 +12,8 @@ import androidx.room.RoomDatabase
         OutboxCommandEntity::class,
         IpdAdmissionEntity::class
     ],
-    version = 3,
+    // v4: OutboxCommandEntity.failedPermanently (bounded outbox retry).
+    version = 4,
     exportSchema = false
 )
 abstract class StaffDatabase : RoomDatabase() {

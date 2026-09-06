@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.network.AdmissionStatus
 import ai.medray.staff.data.network.IpdAdmission
+import ai.medray.staff.data.repository.IpdOutboxSyncStatus
 import ai.medray.staff.domain.IpdTaskListItem
 import ai.medray.staff.domain.IpdTaskListDerivation
 import ai.medray.staff.domain.IpdTaskType
@@ -102,6 +103,40 @@ private fun AdmissionRow(admission: IpdAdmission, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Ward Home's outbox sync-status banner — a nurse relying on the offline
+ * fallback (vitals/nursing note/medication administration writes, see
+ * OutboxManager) previously had no way to tell a write was still pending,
+ * or had permanently failed (OutboxSyncWorker.MAX_ATTEMPTS), short of
+ * checking the static "Outbox Active" line on the Profile screen. Only
+ * rendered by the caller when outboxStatus.hasAnything is true.
+ */
+@Composable
+private fun OutboxSyncBanner(status: IpdOutboxSyncStatus) {
+    val hasFailed = status.failedCount > 0
+    val bg = if (hasFailed) StatusErrorBg else StatusWarningBg
+    val border = if (hasFailed) StatusErrorBorder else StatusWarningBorder
+    val text = if (hasFailed) StatusErrorText else StatusWarningText
+    val message = when {
+        hasFailed && status.pendingCount > 0 ->
+            "${status.pendingCount} change${if (status.pendingCount == 1) "" else "s"} waiting to sync · ${status.failedCount} failed to sync"
+        hasFailed -> "${status.failedCount} change${if (status.failedCount == 1) "" else "s"} failed to sync"
+        else -> "${status.pendingCount} change${if (status.pendingCount == 1) "" else "s"} waiting to sync"
+    }
+    Surface(color = bg, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, border), modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Icon(
+                if (hasFailed) Icons.Filled.ErrorOutline else Icons.Filled.CloudSync,
+                contentDescription = null,
+                tint = text,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = text)
+        }
+    }
+}
+
 @Composable
 private fun EmptyState(title: String, subtitle: String) {
     Surface(
@@ -132,6 +167,7 @@ fun IpdWardHomeScreen(
     userName: String?,
     admissions: List<IpdAdmission>,
     tasks: List<IpdTaskListItem>,
+    outboxStatus: IpdOutboxSyncStatus = IpdOutboxSyncStatus(0, 0),
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onPatientsClick: () -> Unit,
@@ -163,6 +199,10 @@ fun IpdWardHomeScreen(
                         Text("Welcome back, ${it.trim().split(" ").firstOrNull() ?: it}", style = MaterialTheme.typography.bodySmall, color = Slate500)
                     }
                 }
+            }
+
+            if (outboxStatus.hasAnything) {
+                item { OutboxSyncBanner(outboxStatus) }
             }
 
             item {

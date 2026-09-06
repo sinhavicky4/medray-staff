@@ -174,7 +174,13 @@ data class OutboxCommandEntity(
     val payloadJson: String,
     val createdAt: Long = System.currentTimeMillis(),
     val attempts: Int = 0,
-    val lastError: String? = null
+    val lastError: String? = null,
+    // Set once attempts hits OutboxSyncWorker.MAX_ATTEMPTS — stops the
+    // worker retrying a command forever (it previously did, silently, with
+    // no way for the nurse to ever learn a write never made it). A
+    // permanently-failed command is excluded from getAllPending() and
+    // surfaced instead via getFailedCount() for the Ward Home banner.
+    val failedPermanently: Boolean = false
 )
 
 // Cache-and-fall-back for the ward roster only (mirrors QueueEntryEntity/

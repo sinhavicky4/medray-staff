@@ -462,6 +462,7 @@ fun StaffAppNavHost(
     var ipdAdmissions by remember { mutableStateOf<List<IpdAdmission>>(emptyList()) }
     var ipdTasks by remember { mutableStateOf<List<IpdTaskListItem>>(emptyList()) }
     var ipdWardLoading by remember { mutableStateOf(false) }
+    var ipdOutboxStatus by remember { mutableStateOf(IpdOutboxSyncStatus(pendingCount = 0, failedCount = 0)) }
     val ipdPendingTaskCount = ipdTasks.size
     var ipdWardSearchQuery by remember { mutableStateOf("") }
 
@@ -590,6 +591,7 @@ fun StaffAppNavHost(
                     }
                 }.awaitAll().flatten()
             }
+            ipdOutboxStatus = ipdRepo.getOutboxSyncStatus()
         } finally {
             ipdWardLoading = false
         }
@@ -1163,6 +1165,7 @@ fun StaffAppNavHost(
                         userName = currentUser?.fullName,
                         admissions = ipdAdmissions,
                         tasks = ipdTasks,
+                        outboxStatus = ipdOutboxStatus,
                         isLoading = ipdWardLoading,
                         onRefresh = { coroutineScope.launch { refreshIpdWard() } },
                         onPatientsClick = { navController.navigate(Screen.IpdPatientList.route) },
@@ -1224,6 +1227,10 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.recordVitals(req)
                                     Toast.makeText(context, res.exceptionOrNull()?.message ?: "Vitals recorded", Toast.LENGTH_SHORT).show()
                                     loadIpdChartData(admissionId)
+                                    // So the Task List / bottom-nav badge reflect this write
+                                    // immediately — see refreshIpdWard's own call sites above,
+                                    // which previously only ran at login + manual pull-to-refresh.
+                                    refreshIpdWard()
                                 }
                             },
                             onAddNursingNote = { req ->
@@ -1231,6 +1238,7 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.addNursingNote(req)
                                     Toast.makeText(context, res.exceptionOrNull()?.message ?: "Note added", Toast.LENGTH_SHORT).show()
                                     loadIpdChartData(admissionId)
+                                    refreshIpdWard()
                                 }
                             },
                             onCreateMedicationAdministration = { req ->
@@ -1238,6 +1246,7 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.createMedicationAdministration(req)
                                     Toast.makeText(context, res.exceptionOrNull()?.message ?: "Administration scheduled", Toast.LENGTH_SHORT).show()
                                     loadIpdChartData(admissionId)
+                                    refreshIpdWard()
                                 }
                             },
                             onUpdateMedicationAdministrationStatus = { id, req ->
@@ -1245,6 +1254,7 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.updateMedicationAdministrationStatus(id, req)
                                     if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
                                     loadIpdChartData(admissionId)
+                                    refreshIpdWard()
                                 }
                             },
                             onUpdateInvestigationStatus = { id, status ->
@@ -1252,6 +1262,7 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.updateInvestigationStatus(id, status)
                                     if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
                                     loadIpdChartData(admissionId)
+                                    refreshIpdWard()
                                 }
                             },
                             onAddInvestigationResult = { id, req ->
@@ -1259,6 +1270,7 @@ fun StaffAppNavHost(
                                     val res = ipdRepo.addInvestigationResult(id, req)
                                     if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't save result", Toast.LENGTH_LONG).show()
                                     loadIpdChartData(admissionId)
+                                    refreshIpdWard()
                                 }
                             }
                         )

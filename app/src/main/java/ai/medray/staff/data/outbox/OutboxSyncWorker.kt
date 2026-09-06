@@ -22,24 +22,43 @@ class OutboxSyncWorker(
         val pending = db.outboxDao().getAllPending()
         if (pending.isEmpty()) return@withContext Result.success()
 
-        var hasFailures = false
+        // hasRetryableFailures (distinct from hasFailures) is what decides
+        // Result.retry() vs Result.success() below — once every failure
+        // this round has been marked failedPermanently, there's nothing
+        // left worth WorkManager re-invoking for.
+        var hasRetryableFailures = false
 
         for (cmd in pending) {
-            try {
-                val success = processCommand(cmd.commandType, cmd.payloadJson)
-                if (success) {
+            val failure = try {
+                if (processCommand(cmd.commandType, cmd.payloadJson)) {
                     db.outboxDao().deleteCommand(cmd.id)
+                    null
                 } else {
-                    hasFailures = true
-                    db.outboxDao().recordAttemptFailure(cmd.id, "Server rejected command")
+                    "Server rejected command"
                 }
             } catch (e: Exception) {
-                hasFailures = true
-                db.outboxDao().recordAttemptFailure(cmd.id, e.message ?: "Network error")
+                e.message ?: "Network error"
+            }
+            if (failure != null) {
+                db.outboxDao().recordAttemptFailure(cmd.id, failure)
+                if (cmd.attempts + 1 >= MAX_ATTEMPTS) {
+                    db.outboxDao().markFailedPermanently(cmd.id)
+                } else {
+                    hasRetryableFailures = true
+                }
             }
         }
 
-        if (hasFailures) Result.retry() else Result.success()
+        if (hasRetryableFailures) Result.retry() else Result.success()
+    }
+
+    companion object {
+        // A command stuck failing this many times is far more likely stale
+        // or permanently invalid (e.g. the admission it targets no longer
+        // exists) than one more retry away from succeeding — retrying it
+        // forever, silently, previously left the nurse believing a write
+        // had saved when it never would.
+        private const val MAX_ATTEMPTS = 5
     }
 
     private suspend fun processCommand(commandType: String, payloadJson: String): Boolean {
