@@ -176,3 +176,93 @@ data class OutboxCommandEntity(
     val attempts: Int = 0,
     val lastError: String? = null
 )
+
+// Cache-and-fall-back for the ward roster only (mirrors QueueEntryEntity/
+// QueueDao exactly) — a nurse needs to see *something* if the network blips
+// mid-shift. Deliberately NOT extended to vitals/notes/medication/
+// investigation detail reads: a stale cached clinical reading presented as
+// current is a worse failure mode than a clear "couldn't load, retry" error
+// (same "don't paper over a stale/failed read with fabricated confidence"
+// principle BillingRepository already applies to money, extended here to
+// clinically-sensitive detail reads).
+@Entity(tableName = "ipd_admissions")
+data class IpdAdmissionEntity(
+    @PrimaryKey val id: String,
+    val clinicId: String,
+    val admissionNumber: String,
+    val patientId: String,
+    val patientName: String?,
+    val patientUhid: String?,
+    val status: String,
+    val admissionDateTime: String,
+    val attendingDoctorId: String,
+    val attendingDoctorName: String?,
+    val reasonForAdmission: String,
+    val provisionalDiagnosis: String,
+    val bedLabel: String?,
+    val roomName: String?,
+    val wardName: String?
+) {
+    fun toDomain(): ai.medray.staff.data.network.IpdAdmission {
+        val patient = if (patientName != null && patientUhid != null) {
+            Patient(id = patientId, clinicId = clinicId, fullName = patientName, uhid = patientUhid)
+        } else null
+        val doctor = if (attendingDoctorName != null) {
+            DoctorSummary(id = attendingDoctorId, fullName = attendingDoctorName)
+        } else null
+        val bed = if (bedLabel != null && roomName != null && wardName != null) {
+            ai.medray.staff.data.network.BedSummary(
+                id = "",
+                label = bedLabel,
+                room = ai.medray.staff.data.network.RoomSummary(id = "", name = roomName, ward = ai.medray.staff.data.network.WardSummary(id = "", name = wardName))
+            )
+        } else null
+        return ai.medray.staff.data.network.IpdAdmission(
+            id = id,
+            clinicId = clinicId,
+            admissionNumber = admissionNumber,
+            patientId = patientId,
+            patient = patient,
+            status = ai.medray.staff.data.network.AdmissionStatus.valueOf(status),
+            admissionDateTime = admissionDateTime,
+            admittingDoctorId = attendingDoctorId,
+            attendingDoctorId = attendingDoctorId,
+            attendingDoctor = doctor,
+            reasonForAdmission = reasonForAdmission,
+            provisionalDiagnosis = provisionalDiagnosis,
+            bedAssignments = if (bed != null) {
+                listOf(
+                    ai.medray.staff.data.network.BedAssignmentSummary(
+                        id = "",
+                        bedId = bed.id,
+                        bed = bed,
+                        status = ai.medray.staff.data.network.BedAssignmentStatus.ACTIVE
+                    )
+                )
+            } else emptyList()
+        )
+    }
+
+    companion object {
+        fun fromDomain(a: ai.medray.staff.data.network.IpdAdmission): IpdAdmissionEntity {
+            val bed = a.currentBed
+            return IpdAdmissionEntity(
+                id = a.id,
+                clinicId = a.clinicId,
+                admissionNumber = a.admissionNumber,
+                patientId = a.patientId,
+                patientName = a.patient?.fullName,
+                patientUhid = a.patient?.uhid,
+                status = a.status.name,
+                admissionDateTime = a.admissionDateTime,
+                attendingDoctorId = a.attendingDoctorId,
+                attendingDoctorName = a.attendingDoctor?.fullName,
+                reasonForAdmission = a.reasonForAdmission,
+                provisionalDiagnosis = a.provisionalDiagnosis,
+                bedLabel = bed?.label,
+                roomName = bed?.room?.name,
+                wardName = bed?.room?.ward?.name
+            )
+        }
+    }
+}

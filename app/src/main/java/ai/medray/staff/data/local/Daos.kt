@@ -63,6 +63,18 @@ interface QueueDao {
 }
 
 @Dao
+interface IpdAdmissionDao {
+    @Query("SELECT * FROM ipd_admissions WHERE clinicId = :clinicId ORDER BY admissionDateTime DESC")
+    fun getAdmissions(clinicId: String): Flow<List<IpdAdmissionEntity>>
+
+    @Query("SELECT * FROM ipd_admissions WHERE clinicId = :clinicId ORDER BY admissionDateTime DESC")
+    suspend fun getAdmissionsSync(clinicId: String): List<IpdAdmissionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAdmissions(admissions: List<IpdAdmissionEntity>)
+}
+
+@Dao
 interface OutboxDao {
     @Query("SELECT * FROM outbox_commands ORDER BY createdAt ASC")
     suspend fun getAllPending(): List<OutboxCommandEntity>

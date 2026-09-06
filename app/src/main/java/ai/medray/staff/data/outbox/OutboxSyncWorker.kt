@@ -70,6 +70,29 @@ class OutboxSyncWorker(
                 )
                 resp.isSuccessful
             }
+            // Vitals/notes/medication-administration creation are the only
+            // IPD writes queued here — all three have a client-generated-id
+            // upsert on the server (api/src/routes/ipdNursing.ts/
+            // ipdMedications.ts), so a retried command can't create a
+            // duplicate row. Status-changing IPD writes (medication
+            // administration status, investigation status/result) are
+            // deliberately online-only — see IpdRepository's own doc
+            // comments for why (same reasoning BillingRepository already
+            // applies to money: a silently-queued-then-lost clinical status
+            // change is a real patient-safety risk, not just an
+            // inconvenience).
+            "CREATE_IPD_VITALS" -> {
+                val data = gson.fromJson(payloadJson, CreateIpdVitalsCommandPayload::class.java)
+                api.recordIpdVitals(req = data.request, clinicId = data.clinicId).isSuccessful
+            }
+            "CREATE_NURSING_NOTE" -> {
+                val data = gson.fromJson(payloadJson, CreateNursingNoteCommandPayload::class.java)
+                api.addNursingNote(req = data.request, clinicId = data.clinicId).isSuccessful
+            }
+            "CREATE_MEDICATION_ADMINISTRATION" -> {
+                val data = gson.fromJson(payloadJson, CreateMedicationAdministrationCommandPayload::class.java)
+                api.createMedicationAdministration(req = data.request, clinicId = data.clinicId).isSuccessful
+            }
             else -> true
         }
     }
@@ -90,4 +113,19 @@ data class UpdateStatusCommandPayload(
 data class RegisterQueueCommandPayload(
     val clinicId: String?,
     val request: RegisterQueueRequest
+)
+
+data class CreateIpdVitalsCommandPayload(
+    val clinicId: String?,
+    val request: CreateIpdVitalsRequest
+)
+
+data class CreateNursingNoteCommandPayload(
+    val clinicId: String?,
+    val request: CreateNursingNoteRequest
+)
+
+data class CreateMedicationAdministrationCommandPayload(
+    val clinicId: String?,
+    val request: CreateMedicationAdministrationRequest
 )

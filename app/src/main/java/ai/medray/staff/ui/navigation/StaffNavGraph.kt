@@ -59,8 +59,15 @@ import ai.medray.staff.ui.selfcheckins.AssignSelfCheckInDialog
 import ai.medray.staff.domain.InvoicePdfActions
 import ai.medray.staff.ui.chat.ChatScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ai.medray.staff.domain.IpdTaskListDerivation
+import ai.medray.staff.domain.IpdTaskListItem
+import ai.medray.staff.domain.IpdTaskType
+import ai.medray.staff.ui.ipd.*
 
 
 fun getSampleQueue(): List<QueueEntry> {
@@ -322,6 +329,10 @@ sealed class Screen(val route: String) {
     object Chat : Screen("chat")
     object ClinicSignup : Screen("clinic_signup")
     object StaffManagement : Screen("staff_management")
+    object IpdWard : Screen("ipd_ward")
+    object IpdPatientList : Screen("ipd_patient_list")
+    object IpdPatientChart : Screen("ipd_patient_chart")
+    object IpdTaskList : Screen("ipd_task_list")
 }
 
 data class UpiPaymentModalData(
@@ -350,6 +361,7 @@ fun StaffAppNavHost(
     clinicSignupRepo: ClinicSignupRepository,
     staffManagementRepo: StaffManagementRepository,
     placesRepository: PlacesAutocompleteRepository,
+    ipdRepo: IpdRepository,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -386,6 +398,13 @@ fun StaffAppNavHost(
     var staffActionError by remember { mutableStateOf<String?>(null) }
     var staffTempPasswordReveal by remember { mutableStateOf<Pair<String, String>?>(null) } // fullName to tempPassword
     var showDeactivatedStaff by remember { mutableStateOf(false) }
+
+    // IPD (Phase 3, Nurse-scoped) — Screen.IpdPatientChart takes its target
+    // via this hoisted nullable, set right before navigate(), same idiom as
+    // rxTargetEntry/uploadDocTargetPatient below (this app has no
+    // navArgument-based navigation anywhere, see ui/ipd/IpdWardScreens.kt's
+    // file-level comment for why this screen doesn't introduce one either).
+    var ipdChartTargetAdmissionId by remember { mutableStateOf<String?>(null) }
 
     fun reloadStaffList() {
         coroutineScope.launch {
@@ -435,6 +454,50 @@ fun StaffAppNavHost(
     var doctors by remember { mutableStateOf(listOf(DoctorSummary("doc-1", "Rajesh Sharma", "General Physician"), DoctorSummary("doc-2", "Ananya Roy", "Cardiologist"))) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedDoctorId by remember { mutableStateOf<String?>(null) }
+
+    // IPD (Phase 3, Nurse-scoped) — ipdAdmissions/ipdTasks are shared across
+    // the Ward Home tiles, the bottom-nav badge, and the Task List screen so
+    // none of them re-fetch independently. ipdTasks is derived client-side
+    // (IpdTaskListDerivation) since no backend endpoint aggregates this.
+    var ipdAdmissions by remember { mutableStateOf<List<IpdAdmission>>(emptyList()) }
+    var ipdTasks by remember { mutableStateOf<List<IpdTaskListItem>>(emptyList()) }
+    var ipdWardLoading by remember { mutableStateOf(false) }
+    val ipdPendingTaskCount = ipdTasks.size
+    var ipdWardSearchQuery by remember { mutableStateOf("") }
+
+    // Patient Chart's own tab data, hoisted like every other screen's data
+    // in this file (no screen in this app fetches its own data — see
+    // PatientsScreen/BillingScreen, both pure-presentation) — one bundle
+    // rather than six separate vars to keep this from sprawling further.
+    var ipdChart by remember { mutableStateOf(IpdChartData()) }
+    var ipdChartError by remember { mutableStateOf<String?>(null) }
+
+    suspend fun loadIpdChartData(admissionId: String) {
+        ipdChart = ipdChart.copy(isLoading = true)
+        ipdChartError = null
+        val admissionRes = ipdRepo.getAdmission(admissionId)
+        if (admissionRes.isFailure) {
+            ipdChartError = admissionRes.exceptionOrNull()?.message ?: "Couldn't load this patient's chart"
+            ipdChart = ipdChart.copy(isLoading = false)
+            return
+        }
+        coroutineScope {
+            val vitalsDeferred = async { ipdRepo.listVitals(admissionId).getOrDefault(emptyList()) }
+            val notesDeferred = async { ipdRepo.listNursingNotes(admissionId).getOrDefault(emptyList()) }
+            val medsDeferred = async { ipdRepo.listMedicationOrders(admissionId).getOrDefault(emptyList()) }
+            val investigationsDeferred = async { ipdRepo.listInvestigations(admissionId).getOrDefault(emptyList()) }
+            val timelineDeferred = async { ipdRepo.listTimeline(admissionId).getOrDefault(emptyList()) }
+            ipdChart = IpdChartData(
+                admission = admissionRes.getOrNull(),
+                vitals = vitalsDeferred.await(),
+                notes = notesDeferred.await(),
+                medicationOrders = medsDeferred.await(),
+                investigations = investigationsDeferred.await(),
+                timeline = timelineDeferred.await(),
+                isLoading = false
+            )
+        }
+    }
 
     // Dialog States
     var vitalsTargetEntry by remember { mutableStateOf<QueueEntry?>(null) }
@@ -498,6 +561,38 @@ fun StaffAppNavHost(
         }
     }
 
+    // IPD ward roster + derived task list (Nurse only — see IpdRepository's
+    // own doc comment on why only the roster caches-and-falls-back, and
+    // IpdTaskListDerivation's on why this fan-out is client-side at all).
+    // Bounded by realistic ward census sizes (tens of admissions, not
+    // thousands) — see the plan's own note on not requesting a backend
+    // aggregate endpoint for this in Phase 3.
+    suspend fun refreshIpdWard() {
+        ipdWardLoading = true
+        try {
+            val admissions = ipdRepo.refreshAdmissions(AdmissionStatus.INPATIENT).getOrDefault(emptyList())
+            ipdAdmissions = admissions
+            ipdTasks = coroutineScope {
+                admissions.map { admission ->
+                    async {
+                        val meds = ipdRepo.listMedicationOrders(admission.id).getOrDefault(emptyList())
+                            .flatMap { it.administrations }
+                        val investigations = ipdRepo.listInvestigations(admission.id).getOrDefault(emptyList())
+                        val lastVitals = ipdRepo.listVitals(admission.id).getOrDefault(emptyList()).firstOrNull()?.recordedAt
+                        IpdTaskListDerivation.deriveTasksForAdmission(
+                            admission = admission,
+                            medicationAdministrations = meds,
+                            investigations = investigations,
+                            lastVitalsRecordedAt = lastVitals
+                        )
+                    }
+                }.awaitAll().flatten()
+            }
+        } finally {
+            ipdWardLoading = false
+        }
+    }
+
     // Refresh data coordinator
     fun refreshAllData() {
         coroutineScope.launch {
@@ -520,6 +615,8 @@ fun StaffAppNavHost(
 
                 val sRes = selfCheckInRepo.listPending()
                 if (sRes.isSuccess) selfCheckInsList = sRes.getOrDefault(emptyList())
+
+                if (currentUser?.isNurse == true) refreshIpdWard()
             } finally {
                 isRefreshing = false
             }
@@ -705,6 +802,7 @@ fun StaffAppNavHost(
                     } else if (currentUser?.isNurse == true) {
                         listOf(
                             BottomNavItem(Screen.Queue.route, "Triage", Icons.AutoMirrored.Filled.ListAlt, Icons.AutoMirrored.Outlined.ListAlt),
+                            BottomNavItem(Screen.IpdWard.route, "Ward", Icons.Filled.LocalHospital, Icons.Outlined.LocalHospital, badgeCount = ipdPendingTaskCount),
                             BottomNavItem(Screen.Patients.route, "Patients", Icons.Filled.People, Icons.Outlined.People),
                             BottomNavItem(Screen.Appointments.route, "Appointments", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
                             BottomNavItem(Screen.Profile.route, "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle)
@@ -1055,6 +1153,114 @@ fun StaffAppNavHost(
                             showBookAppointmentDialog = true
                         }
                     )
+                }
+
+                // IPD (Phase 3, Nurse-scoped) — Ward Home
+                composable(Screen.IpdWard.route) {
+                    IpdWardHomeScreen(
+                        userName = currentUser?.fullName,
+                        admissions = ipdAdmissions,
+                        tasks = ipdTasks,
+                        isLoading = ipdWardLoading,
+                        onRefresh = { coroutineScope.launch { refreshIpdWard() } },
+                        onPatientsClick = { navController.navigate(Screen.IpdPatientList.route) },
+                        onTaskListClick = { navController.navigate(Screen.IpdTaskList.route) },
+                        onPatientClick = { admission ->
+                            ipdChartTargetAdmissionId = admission.id
+                            navController.navigate(Screen.IpdPatientChart.route)
+                        }
+                    )
+                }
+
+                // IPD — Patient List (the full searchable inpatient roster;
+                // distinct from Screen.Patients, the OPD-wide directory)
+                composable(Screen.IpdPatientList.route) {
+                    IpdPatientListScreen(
+                        admissions = ipdAdmissions,
+                        searchQuery = ipdWardSearchQuery,
+                        onSearchChange = { ipdWardSearchQuery = it },
+                        isLoading = ipdWardLoading,
+                        onRefresh = { coroutineScope.launch { refreshIpdWard() } },
+                        onPatientClick = { admission ->
+                            ipdChartTargetAdmissionId = admission.id
+                            navController.navigate(Screen.IpdPatientChart.route)
+                        }
+                    )
+                }
+
+                // IPD — Task List (derived, see IpdTaskListDerivation)
+                composable(Screen.IpdTaskList.route) {
+                    IpdTaskListScreen(
+                        tasks = ipdTasks,
+                        isLoading = ipdWardLoading,
+                        onRefresh = { coroutineScope.launch { refreshIpdWard() } },
+                        onTaskClick = { task ->
+                            ipdChartTargetAdmissionId = task.admissionId
+                            navController.navigate(Screen.IpdPatientChart.route)
+                        }
+                    )
+                }
+
+                // IPD — Patient Chart. Takes its target from the hoisted
+                // ipdChartTargetAdmissionId (see its own doc comment above)
+                // rather than a nav argument — this app has none anywhere.
+                composable(Screen.IpdPatientChart.route) {
+                    val admissionId = ipdChartTargetAdmissionId
+                    LaunchedEffect(admissionId) {
+                        if (admissionId != null) loadIpdChartData(admissionId)
+                    }
+                    if (admissionId == null) {
+                        LaunchedEffect(Unit) { navController.popBackStack() }
+                    } else {
+                        IpdPatientChartScreen(
+                            chart = ipdChart,
+                            error = ipdChartError,
+                            onBack = { navController.popBackStack() },
+                            onRefresh = { coroutineScope.launch { loadIpdChartData(admissionId) } },
+                            onRecordVitals = { req ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.recordVitals(req)
+                                    Toast.makeText(context, res.exceptionOrNull()?.message ?: "Vitals recorded", Toast.LENGTH_SHORT).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            },
+                            onAddNursingNote = { req ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.addNursingNote(req)
+                                    Toast.makeText(context, res.exceptionOrNull()?.message ?: "Note added", Toast.LENGTH_SHORT).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            },
+                            onCreateMedicationAdministration = { req ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.createMedicationAdministration(req)
+                                    Toast.makeText(context, res.exceptionOrNull()?.message ?: "Administration scheduled", Toast.LENGTH_SHORT).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            },
+                            onUpdateMedicationAdministrationStatus = { id, req ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.updateMedicationAdministrationStatus(id, req)
+                                    if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            },
+                            onUpdateInvestigationStatus = { id, status ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.updateInvestigationStatus(id, status)
+                                    if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            },
+                            onAddInvestigationResult = { id, req ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.addInvestigationResult(id, req)
+                                    if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't save result", Toast.LENGTH_LONG).show()
+                                    loadIpdChartData(admissionId)
+                                }
+                            }
+                        )
+                    }
                 }
 
                 // 5. Appointments Screen

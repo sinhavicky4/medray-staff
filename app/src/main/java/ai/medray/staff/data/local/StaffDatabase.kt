@@ -9,9 +9,10 @@ import androidx.room.RoomDatabase
     entities = [
         PatientEntity::class,
         QueueEntryEntity::class,
-        OutboxCommandEntity::class
+        OutboxCommandEntity::class,
+        IpdAdmissionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class StaffDatabase : RoomDatabase() {
@@ -19,6 +20,7 @@ abstract class StaffDatabase : RoomDatabase() {
     abstract fun patientDao(): PatientDao
     abstract fun queueDao(): QueueDao
     abstract fun outboxDao(): OutboxDao
+    abstract fun ipdAdmissionDao(): IpdAdmissionDao
 
     companion object {
         @Volatile

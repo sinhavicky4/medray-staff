@@ -188,6 +188,191 @@ data class CollectAdvancePaymentRequest(
     val note: String? = null
 )
 
+// --- IPD (Inpatient Department) — Phase 3 staff app ---
+// Mirrors api/src/routes/ipd*.ts one-for-one. Field names mirror the Prisma
+// model fields, same convention every other model in this file already
+// follows against its own backend counterpart.
+
+enum class AdmissionStatus {
+    ADMISSION_REQUESTED, ADMISSION_APPROVED, BED_RESERVED, ADMITTED, INPATIENT,
+    DISCHARGE_INITIATED, DISCHARGED, CANCELLED, TRANSFERRED_OUT, LAMA, ABSCONDED, DECEASED
+}
+
+enum class BedAssignmentStatus { RESERVED, ACTIVE, RELEASED, CANCELLED }
+enum class DoctorAssignmentRole { ADMITTING, ATTENDING, CONSULTING }
+enum class IpdOrderStatus { ORDERED, ACCEPTED, IN_PROGRESS, COMPLETED, CANCELLED }
+enum class MedicationAdministrationStatus { SCHEDULED, DUE, ADMINISTERED, HELD, REFUSED, MISSED, CANCELLED }
+enum class InvestigationOrderStatus { ORDERED, ACCEPTED, IN_PROGRESS, COMPLETED, CANCELLED }
+enum class InvestigationResultType { STRUCTURED, PDF, IMAGE_DOCUMENT }
+
+data class WardSummary(val id: String, val name: String)
+data class RoomSummary(val id: String, val name: String, val ward: WardSummary)
+data class BedSummary(val id: String, val label: String, val room: RoomSummary)
+
+data class BedAssignmentSummary(
+    val id: String,
+    val bedId: String,
+    val bed: BedSummary? = null,
+    val status: BedAssignmentStatus
+)
+
+data class DoctorAssignmentSummary(
+    val id: String,
+    val doctorId: String,
+    val doctor: DoctorSummary? = null,
+    val role: DoctorAssignmentRole,
+    val isActive: Boolean
+)
+
+// GET /api/ipd/admissions and GET /api/ipd/admissions/:id share this shape —
+// the list endpoint omits some fields the detail endpoint includes (e.g.
+// insurance/referral detail), all left nullable here rather than split into
+// two DTOs, same as this file's existing single-DTO-for-list-and-detail
+// convention (compare QueueEntry, used for both GET /queue and its writes).
+data class IpdAdmission(
+    val id: String,
+    val clinicId: String,
+    val admissionNumber: String,
+    val patientId: String,
+    val patient: Patient? = null,
+    val status: AdmissionStatus,
+    val admissionDateTime: String,
+    val admittingDoctorId: String,
+    val attendingDoctorId: String,
+    val attendingDoctor: DoctorSummary? = null,
+    val reasonForAdmission: String,
+    val provisionalDiagnosis: String,
+    val dischargeInitiatedAt: String? = null,
+    val dischargedAt: String? = null,
+    val createdAt: String = "",
+    // Only ever the ACTIVE assignment(s) — server-side filtered, "current
+    // bed"/"current doctor," not history.
+    val bedAssignments: List<BedAssignmentSummary> = emptyList(),
+    val doctorAssignments: List<DoctorAssignmentSummary> = emptyList()
+) {
+    val currentBed: BedSummary? get() = bedAssignments.firstOrNull { it.status == BedAssignmentStatus.ACTIVE }?.bed
+}
+
+data class IpdVitalsReading(
+    val id: String? = null,
+    val admissionId: String,
+    val recordedAt: String? = null,
+    val temperatureF: Double? = null,
+    val bloodPressure: String? = null,
+    val pulseBpm: Int? = null,
+    val respRatePerMin: Int? = null,
+    val spo2Percent: Int? = null,
+    val bloodGlucose: Double? = null,
+    val weightKg: Double? = null,
+    val painScore: Int? = null,
+    val intakeMl: Double? = null,
+    val outputMl: Double? = null,
+    val recordedBy: DoctorSummary? = null
+)
+
+data class NursingNote(
+    val id: String? = null,
+    val admissionId: String,
+    val note: String,
+    val createdAt: String? = null,
+    val author: DoctorSummary? = null
+)
+
+data class MedicationOrder(
+    val id: String,
+    val admissionId: String,
+    val medicationName: String,
+    val dose: String,
+    val route: String,
+    val frequency: String,
+    val startAt: String,
+    val endAt: String? = null,
+    val instructions: String? = null,
+    val administrations: List<MedicationAdministration> = emptyList()
+)
+
+data class MedicationAdministration(
+    val id: String? = null,
+    val medicationOrderId: String,
+    val admissionId: String? = null,
+    val scheduledAt: String,
+    val actualAt: String? = null,
+    val dose: String,
+    val route: String,
+    val status: MedicationAdministrationStatus = MedicationAdministrationStatus.SCHEDULED,
+    val administeredBy: DoctorSummary? = null,
+    val reason: String? = null,
+    val notes: String? = null
+)
+
+data class UpdateMedicationAdministrationStatusRequest(
+    val status: MedicationAdministrationStatus,
+    val actualAt: String? = null,
+    val reason: String? = null,
+    val notes: String? = null
+)
+
+data class InvestigationOrder(
+    val id: String,
+    val admissionId: String,
+    val investigationType: String,
+    val testName: String,
+    val instructions: String? = null,
+    val status: InvestigationOrderStatus,
+    val resultType: InvestigationResultType? = null,
+    val resultText: String? = null,
+    val resultAt: String? = null,
+    val reviewedAt: String? = null
+)
+
+data class UpdateInvestigationStatusRequest(val status: InvestigationOrderStatus)
+data class AddInvestigationResultRequest(
+    val resultType: InvestigationResultType,
+    val resultText: String? = null,
+    val documentId: String? = null
+)
+
+data class IpdTimelineEvent(
+    val id: String,
+    val eventType: String,
+    val occurredAt: String,
+    val actorEmail: String? = null,
+    val summary: String
+)
+
+// id is optional client-generated (offline-retry safety, see
+// IpdRepository) — server upserts on it when present, generates its own
+// when omitted, mirroring MedicationAdministration's existing pattern
+// (api/src/routes/ipdNursing.ts, ipdMedications.ts).
+data class CreateIpdVitalsRequest(
+    val id: String? = null,
+    val admissionId: String,
+    val temperatureF: Double? = null,
+    val bloodPressure: String? = null,
+    val pulseBpm: Int? = null,
+    val respRatePerMin: Int? = null,
+    val spo2Percent: Int? = null,
+    val bloodGlucose: Double? = null,
+    val weightKg: Double? = null,
+    val painScore: Int? = null,
+    val intakeMl: Double? = null,
+    val outputMl: Double? = null
+)
+
+data class CreateNursingNoteRequest(
+    val id: String? = null,
+    val admissionId: String,
+    val note: String
+)
+
+data class CreateMedicationAdministrationRequest(
+    val id: String? = null,
+    val medicationOrderId: String,
+    val scheduledAt: String,
+    val dose: String,
+    val route: String
+)
+
 interface StaffApiService {
 
     // Auth
@@ -431,11 +616,112 @@ interface StaffApiService {
         @Part file: MultipartBody.Part,
         @Part("kind") kind: RequestBody,
         @Part("visitId") visitId: RequestBody? = null,
-        @Part("notes") notes: RequestBody? = null
+        @Part("notes") notes: RequestBody? = null,
+        // IPD investigation-result attach — ties the upload to one admission
+        // (api/src/routes/patients.ts, fixed alongside the web IPD phase to
+        // accept this the same way it already accepted visitId).
+        @Part("admissionId") admissionId: RequestBody? = null
     ): Response<PatientDocument>
 
     @DELETE("patients/documents/{documentId}")
     suspend fun deleteDocument(@Path("documentId") documentId: String): Response<Unit>
+
+    // IPD (Inpatient Department) — Phase 3 staff app. Nurse-scoped: see
+    // §30's Web/Staff/Doctor role mapping (STAFF APP = Nurse) — no admission-
+    // create/approve/bed-reserve, medication/investigation-order, discharge-
+    // summary-authoring, or billing endpoints here, those are the web
+    // portal's and doctor app's respective surfaces.
+    @GET("ipd/admissions")
+    suspend fun listIpdAdmissions(
+        @Query("status") status: AdmissionStatus? = null,
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<IpdAdmission>>
+
+    @GET("ipd/admissions/{id}")
+    suspend fun getIpdAdmission(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdAdmission>
+
+    @GET("ipd/nursing/vitals")
+    suspend fun listIpdVitals(
+        @Query("admissionId") admissionId: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<IpdVitalsReading>>
+
+    @POST("ipd/nursing/vitals")
+    suspend fun recordIpdVitals(
+        @Body req: CreateIpdVitalsRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdVitalsReading>
+
+    @GET("ipd/nursing/notes")
+    suspend fun listNursingNotes(
+        @Query("admissionId") admissionId: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<NursingNote>>
+
+    @POST("ipd/nursing/notes")
+    suspend fun addNursingNote(
+        @Body req: CreateNursingNoteRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<NursingNote>
+
+    @GET("ipd/medications")
+    suspend fun listMedicationOrders(
+        @Query("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<MedicationOrder>>
+
+    @GET("ipd/medication-administrations")
+    suspend fun listMedicationAdministrations(
+        @Query("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<MedicationAdministration>>
+
+    @POST("ipd/medication-administrations")
+    suspend fun createMedicationAdministration(
+        @Body req: CreateMedicationAdministrationRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<MedicationAdministration>
+
+    @PATCH("ipd/medication-administrations/{id}/status")
+    suspend fun updateMedicationAdministrationStatus(
+        @Path("id") id: String,
+        @Body req: UpdateMedicationAdministrationStatusRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<MedicationAdministration>
+
+    @GET("ipd/investigations")
+    suspend fun listInvestigations(
+        @Query("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<InvestigationOrder>>
+
+    @POST("ipd/investigations/{id}/status")
+    suspend fun updateInvestigationStatus(
+        @Path("id") id: String,
+        @Body req: UpdateInvestigationStatusRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<InvestigationOrder>
+
+    @POST("ipd/investigations/{id}/result")
+    suspend fun addInvestigationResult(
+        @Path("id") id: String,
+        @Body req: AddInvestigationResultRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<InvestigationOrder>
+
+    @GET("ipd/timeline")
+    suspend fun listIpdTimeline(
+        @Query("admissionId") admissionId: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<IpdTimelineEvent>>
 
     // Chat Assistant — mirrors web's api.chat.* (web/src/lib/api.ts). Gated
     // server-side to SUPER_ADMIN/CLINIC_ADMIN/RECEPTIONIST/NURSE, same roles

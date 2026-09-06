@@ -27,6 +27,17 @@ if (localPropertiesFile.exists()) {
 }
 val placesApiKey: String = localProperties.getProperty("PLACES_API_KEY") ?: ""
 
+// Optional debug-only override to point the app at a locally-run
+// medray-platform/api instead of the deployed prod URL both build types
+// otherwise share — e.g. "http://10.0.2.2:4000/api/" for the Android
+// emulator's host-loopback address (a physical device on the same LAN
+// would use the machine's actual IP instead). Set LOCAL_API_BASE_URL in
+// local.properties (gitignored, same as PLACES_API_KEY above); blank/unset
+// falls back to the real prod URL below, so this is a zero-risk opt-in —
+// release always uses the prod URL regardless of this file.
+val localApiBaseUrl: String = localProperties.getProperty("LOCAL_API_BASE_URL") ?: ""
+val prodApiBaseUrl = "https://p0p0mmh46m.execute-api.ap-south-1.amazonaws.com/api/"
+
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
 val appVersionCode: Int = 18
@@ -68,7 +79,7 @@ android {
         debug {
             isDebuggable = true
             versionNameSuffix = "-debug"
-            buildConfigField("String", "API_BASE_URL", "\"https://p0p0mmh46m.execute-api.ap-south-1.amazonaws.com/api/\"")
+            buildConfigField("String", "API_BASE_URL", "\"${localApiBaseUrl.ifBlank { prodApiBaseUrl }}\"")
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
@@ -78,7 +89,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "API_BASE_URL", "\"https://p0p0mmh46m.execute-api.ap-south-1.amazonaws.com/api/\"")
+            buildConfigField("String", "API_BASE_URL", "\"$prodApiBaseUrl\"")
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
