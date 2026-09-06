@@ -95,6 +95,9 @@ private fun IpdPatientChartScreenPreview() {
                     IpdVitalsReading(admissionId = "adm-1", recordedAt = "2026-09-06T05:00:00Z", temperatureF = 99.5, bloodPressure = "120/80", pulseBpm = 78, spo2Percent = 98)
                 ),
                 notes = listOf(NursingNote(admissionId = "adm-1", note = "Patient resting comfortably.", createdAt = "2026-09-06T05:05:00Z")),
+                progressNotes = listOf(
+                    DoctorProgressNote(admissionId = "adm-1", status = "SIGNED", versionNumber = 1, note = "Reviewed on rounds — stable, plan unchanged.", createdAt = "2026-09-06T06:00:00Z", author = DoctorSummary(id = "d1", fullName = "Rao"))
+                ),
                 medicationOrders = listOf(
                     MedicationOrder(
                         id = "mo1", admissionId = "adm-1", medicationName = "Amoxicillin", dose = "500mg", route = "Oral", frequency = "1-0-1", startAt = "2026-09-06T00:00:00Z",

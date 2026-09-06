@@ -484,6 +484,7 @@ fun StaffAppNavHost(
         coroutineScope {
             val vitalsDeferred = async { ipdRepo.listVitals(admissionId).getOrDefault(emptyList()) }
             val notesDeferred = async { ipdRepo.listNursingNotes(admissionId).getOrDefault(emptyList()) }
+            val progressNotesDeferred = async { ipdRepo.listProgressNotes(admissionId).getOrDefault(emptyList()) }
             val medsDeferred = async { ipdRepo.listMedicationOrders(admissionId).getOrDefault(emptyList()) }
             val investigationsDeferred = async { ipdRepo.listInvestigations(admissionId).getOrDefault(emptyList()) }
             val timelineDeferred = async { ipdRepo.listTimeline(admissionId).getOrDefault(emptyList()) }
@@ -491,6 +492,7 @@ fun StaffAppNavHost(
                 admission = admissionRes.getOrNull(),
                 vitals = vitalsDeferred.await(),
                 notes = notesDeferred.await(),
+                progressNotes = progressNotesDeferred.await(),
                 medicationOrders = medsDeferred.await(),
                 investigations = investigationsDeferred.await(),
                 timeline = timelineDeferred.await(),

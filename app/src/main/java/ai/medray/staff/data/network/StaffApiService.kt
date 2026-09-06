@@ -278,6 +278,19 @@ data class NursingNote(
     val author: DoctorSummary? = null
 )
 
+// Doctor-authored, signed clinical note (Phase 4) — distinct from
+// NursingNote (DRAFT/SIGNED/AMENDED amend chain vs. plain append-only).
+// Read-only here: nurses never author these, only read them.
+data class DoctorProgressNote(
+    val id: String? = null,
+    val admissionId: String,
+    val status: String,
+    val versionNumber: Int,
+    val note: String,
+    val createdAt: String? = null,
+    val author: DoctorSummary? = null
+)
+
 data class MedicationOrder(
     val id: String,
     val admissionId: String,
@@ -670,6 +683,14 @@ interface StaffApiService {
         @Body req: CreateNursingNoteRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<NursingNote>
+
+    // Read-only — nurses never author DoctorProgressNotes, only display
+    // them (see IpdPatientChartScreen.kt's Progress Notes tab).
+    @GET("ipd/progress-notes")
+    suspend fun listProgressNotes(
+        @Query("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<DoctorProgressNote>>
 
     @GET("ipd/medications")
     suspend fun listMedicationOrders(

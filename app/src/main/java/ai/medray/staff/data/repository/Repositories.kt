@@ -1108,6 +1108,20 @@ class IpdRepository(private val context: Context) {
         }
     }
 
+    // Read-only — no create here, doctors author these from the doctor
+    // app, not this Nurse-facing repository (see StaffApiService.kt's
+    // listProgressNotes doc comment).
+    suspend fun listProgressNotes(admissionId: String): Result<List<DoctorProgressNote>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listProgressNotes(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load progress notes"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun addNursingNote(req: CreateNursingNoteRequest): Result<NursingNote> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         val withId = if (req.id != null) req else req.copy(id = UUID.randomUUID().toString())

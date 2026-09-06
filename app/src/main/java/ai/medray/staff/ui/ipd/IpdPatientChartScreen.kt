@@ -31,6 +31,7 @@ data class IpdChartData(
     val admission: IpdAdmission? = null,
     val vitals: List<IpdVitalsReading> = emptyList(),
     val notes: List<NursingNote> = emptyList(),
+    val progressNotes: List<DoctorProgressNote> = emptyList(),
     val medicationOrders: List<MedicationOrder> = emptyList(),
     val investigations: List<InvestigationOrder> = emptyList(),
     val timeline: List<IpdTimelineEvent> = emptyList(),
@@ -38,8 +39,8 @@ data class IpdChartData(
 )
 
 private enum class ChartSection(val label: String) {
-    OVERVIEW("Overview"), VITALS("Vitals"), NURSING("Nursing"), MEDICATIONS("Medications"),
-    INVESTIGATIONS("Investigations"), TIMELINE("Timeline")
+    OVERVIEW("Overview"), VITALS("Vitals"), NURSING("Nursing"), PROGRESS_NOTES("Progress Notes"),
+    MEDICATIONS("Medications"), INVESTIGATIONS("Investigations"), TIMELINE("Timeline")
 }
 
 private fun lengthOfStayDays(admission: IpdAdmission): Long {
@@ -170,6 +171,7 @@ fun IpdPatientChartScreen(
                     ChartSection.OVERVIEW -> OverviewPanel(admission)
                     ChartSection.VITALS -> VitalsPanel(chart.vitals, onRecordClick = { showVitalsDialog = true })
                     ChartSection.NURSING -> NursingPanel(chart.notes, onAddClick = { showNoteDialog = true })
+                    ChartSection.PROGRESS_NOTES -> ProgressNotesPanel(chart.progressNotes)
                     ChartSection.MEDICATIONS -> MedicationsPanel(
                         orders = chart.medicationOrders,
                         onAdministerClick = { order -> administeringOrderId = order.id },
@@ -266,12 +268,6 @@ private fun OverviewPanel(admission: IpdAdmission) {
         Spacer(modifier = Modifier.height(10.dp))
         Text("Provisional Diagnosis", style = MaterialTheme.typography.labelSmall, color = Slate500)
         Text(admission.provisionalDiagnosis, style = MaterialTheme.typography.bodyMedium, color = Slate800)
-        // Doctor progress notes (Phase 4, Doctor App) — no such model exists
-        // in the backend yet, so this stays an empty-state placeholder
-        // rather than pretending to read something that isn't there.
-        Spacer(modifier = Modifier.height(10.dp))
-        Text("Doctor Progress Notes", style = MaterialTheme.typography.labelSmall, color = Slate500)
-        Text("Will appear here once available.", style = MaterialTheme.typography.bodySmall, color = Slate400)
     }
 }
 
@@ -333,6 +329,36 @@ private fun NursingPanel(notes: List<NursingNote>, onAddClick: () -> Unit) {
         // — explained here rather than leaving a nurse looking for a
         // missing edit button.
         Text("Cannot be edited after saving — add a new note to correct an error.", style = MaterialTheme.typography.labelSmall, color = Slate400, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+// Doctor-authored, signed clinical notes (Phase 4) — read-only here.
+// Nurses never author these, so unlike NursingPanel there's no "+ Add"
+// button; the caption below is about authorship, not edit-immutability.
+@Composable
+private fun ProgressNotesPanel(notes: List<DoctorProgressNote>) {
+    SectionCard {
+        Text("Doctor Progress Notes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Slate900)
+        Spacer(modifier = Modifier.height(10.dp))
+        if (notes.isEmpty()) {
+            EmptyRow("No progress notes yet.")
+        } else {
+            notes.forEach { n ->
+                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Text(n.note, style = MaterialTheme.typography.bodyMedium, color = Slate800)
+                    Text(
+                        listOfNotNull(
+                            n.createdAt?.let { formatIsoDateTimeLocal(it) },
+                            n.author?.fullName?.let { "Dr. $it" },
+                            n.status
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate400
+                    )
+                }
+                HorizontalDivider(color = Slate100)
+            }
+        }
     }
 }
 
