@@ -484,12 +484,16 @@ fun StaffAppNavHost(
             return
         }
         coroutineScope {
-            val vitalsDeferred = async { ipdRepo.listVitals(admissionId).getOrDefault(emptyList()) }
-            val notesDeferred = async { ipdRepo.listNursingNotes(admissionId).getOrDefault(emptyList()) }
-            val progressNotesDeferred = async { ipdRepo.listProgressNotes(admissionId).getOrDefault(emptyList()) }
-            val medsDeferred = async { ipdRepo.listMedicationOrders(admissionId).getOrDefault(emptyList()) }
-            val investigationsDeferred = async { ipdRepo.listInvestigations(admissionId).getOrDefault(emptyList()) }
-            val timelineDeferred = async { ipdRepo.listTimeline(admissionId).getOrDefault(emptyList()) }
+            val failed = mutableSetOf<String>()
+            suspend fun <T> loadSection(name: String, fetch: suspend () -> Result<List<T>>): List<T> =
+                fetch().getOrElse { failed += name; emptyList() }
+
+            val vitalsDeferred = async { loadSection("Vitals") { ipdRepo.listVitals(admissionId) } }
+            val notesDeferred = async { loadSection("Nursing") { ipdRepo.listNursingNotes(admissionId) } }
+            val progressNotesDeferred = async { loadSection("Progress Notes") { ipdRepo.listProgressNotes(admissionId) } }
+            val medsDeferred = async { loadSection("Medications") { ipdRepo.listMedicationOrders(admissionId) } }
+            val investigationsDeferred = async { loadSection("Investigations") { ipdRepo.listInvestigations(admissionId) } }
+            val timelineDeferred = async { loadSection("Timeline") { ipdRepo.listTimeline(admissionId) } }
             ipdChart = IpdChartData(
                 admission = admissionRes.getOrNull(),
                 vitals = vitalsDeferred.await(),
@@ -498,7 +502,8 @@ fun StaffAppNavHost(
                 medicationOrders = medsDeferred.await(),
                 investigations = investigationsDeferred.await(),
                 timeline = timelineDeferred.await(),
-                isLoading = false
+                isLoading = false,
+                failedSections = failed,
             )
         }
     }

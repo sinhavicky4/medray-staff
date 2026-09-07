@@ -35,7 +35,13 @@ data class IpdChartData(
     val medicationOrders: List<MedicationOrder> = emptyList(),
     val investigations: List<InvestigationOrder> = emptyList(),
     val timeline: List<IpdTimelineEvent> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    // Named sections whose own fetch failed independently of the others
+    // (e.g. a mid-load network blip during just the Medications call) —
+    // those tabs render their normal empty state with no indication
+    // anything actually went wrong. Surfaced via a small banner instead of
+    // failing the whole chart load, since the other sections did succeed.
+    val failedSections: Set<String> = emptySet(),
 )
 
 private enum class ChartSection(val label: String) {
@@ -101,6 +107,21 @@ fun IpdPatientChartScreen(
         val admission = chart.admission ?: return@Scaffold
 
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // Non-blocking — the admission and every section that DID
+            // succeed still render normally below; this only flags which
+            // named section(s) failed independently (e.g. a mid-load
+            // network blip during just one fetch), so a tab doesn't just
+            // silently look empty with no explanation.
+            if (chart.failedSections.isNotEmpty()) {
+                Surface(color = StatusWarningBg, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Couldn't load: ${chart.failedSections.joinToString(", ")} — pull to refresh",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StatusWarningText,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+            }
             // Header
             Surface(color = PureWhite, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
