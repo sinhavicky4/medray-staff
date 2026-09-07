@@ -16,7 +16,7 @@ class IpdTaskListDerivationTest {
 
     private val now: Instant = Instant.parse("2026-09-06T12:00:00Z")
 
-    private fun admission(admittedAt: Instant = now.minus(2, ChronoUnit.DAYS)): IpdAdmission = IpdAdmission(
+    private fun admission(admittedAt: Instant = now.minus(2, ChronoUnit.DAYS), vitalsFrequencyHours: Int? = null): IpdAdmission = IpdAdmission(
         id = "adm-1",
         clinicId = "clinic-1",
         admissionNumber = "IPD-1",
@@ -27,7 +27,8 @@ class IpdTaskListDerivationTest {
         admittingDoctorId = "doc-1",
         attendingDoctorId = "doc-1",
         reasonForAdmission = "Fever",
-        provisionalDiagnosis = "Observation"
+        provisionalDiagnosis = "Observation",
+        vitalsFrequencyHours = vitalsFrequencyHours
     )
 
     private fun medAdmin(
@@ -87,6 +88,35 @@ class IpdTaskListDerivationTest {
             now = now
         )
         assertEquals(1, tasks.count { it.taskType == IpdTaskType.VITALS_DUE })
+    }
+
+    @Test
+    fun `doctor-set vitals frequency overrides the default 4-hour heuristic — triggers sooner`() {
+        val tasks = IpdTaskListDerivation.deriveTasksForAdmission(
+            admission = admission(vitalsFrequencyHours = 2),
+            medicationAdministrations = emptyList(),
+            investigations = emptyList(),
+            // 3h since last reading: past the doctor's 2h order, but still
+            // under the 4h default — proves the order is actually read,
+            // not just falling through to the fallback.
+            lastVitalsRecordedAt = now.minus(3, ChronoUnit.HOURS).toString(),
+            now = now
+        )
+        assertEquals(1, tasks.count { it.taskType == IpdTaskType.VITALS_DUE })
+    }
+
+    @Test
+    fun `doctor-set vitals frequency overrides the default 4-hour heuristic — suppresses when longer`() {
+        val tasks = IpdTaskListDerivation.deriveTasksForAdmission(
+            admission = admission(vitalsFrequencyHours = 8),
+            medicationAdministrations = emptyList(),
+            investigations = emptyList(),
+            // 5h since last reading: past the 4h default, but still under
+            // the doctor's own 8h order.
+            lastVitalsRecordedAt = now.minus(5, ChronoUnit.HOURS).toString(),
+            now = now
+        )
+        assertTrue(tasks.none { it.taskType == IpdTaskType.VITALS_DUE })
     }
 
     // --- Medication Due ---

@@ -42,13 +42,15 @@ data class IpdWardTileCounts(
  * Medication Due and Investigation Pending are both directly backed by real
  * backend state (a MedicationAdministration in SCHEDULED past its
  * scheduledAt or already DUE; an InvestigationOrder not yet ORDERED/
- * ACCEPTED/IN_PROGRESS with no result). Vitals Due is NOT backed by
- * anything — no field anywhere records "when vitals are next expected." The
- * 4-hour default below is a heuristic drawn from spec §29's own worked
- * example ("Doctor enters: Vitals every 4 hours"), not a configured or
- * enforced schedule — surface it in the UI as exactly that (a suggestion,
- * not a hard deadline the backend is tracking) rather than implying more
- * precision than the data actually supports.
+ * ACCEPTED/IN_PROGRESS with no result). Vitals Due now reads a real,
+ * doctor-set order too when there is one — Admission.vitalsFrequencyHours
+ * (PATCH /ipd/admissions/:id/vitals-frequency, doctor-only) — falling back
+ * to the same 4-hour heuristic (drawn from spec §29's own worked example,
+ * "Doctor enters: Vitals every 4 hours") only when no admission has ever
+ * had that order set. Still surface it in the UI as a due-time suggestion
+ * rather than a hard backend-enforced deadline — there is still no
+ * scheduler/recurring-task engine generating actual "vitals task" rows,
+ * just a frequency to compare the last reading's age against.
  */
 object IpdTaskListDerivation {
 
@@ -81,7 +83,11 @@ object IpdTaskListDerivation {
         val lastVitals = parseInstant(lastVitalsRecordedAt)
         val admittedAt = parseInstant(admission.admissionDateTime)
         val vitalsBaseline = lastVitals ?: admittedAt
-        if (vitalsBaseline != null && Duration.between(vitalsBaseline, now) >= vitalsDueAfter) {
+        // Doctor-set frequency wins when present; the caller-supplied
+        // [vitalsDueAfter] (still defaulting to DEFAULT_VITALS_DUE_AFTER)
+        // is the fallback for an admission with no order set yet.
+        val effectiveVitalsDueAfter = admission.vitalsFrequencyHours?.let { Duration.ofHours(it.toLong()) } ?: vitalsDueAfter
+        if (vitalsBaseline != null && Duration.between(vitalsBaseline, now) >= effectiveVitalsDueAfter) {
             tasks += IpdTaskListItem(
                 admissionId = admission.id,
                 patientName = patientName,

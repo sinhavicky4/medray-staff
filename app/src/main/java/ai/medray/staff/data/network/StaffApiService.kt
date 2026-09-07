@@ -242,6 +242,10 @@ data class IpdAdmission(
     val attendingDoctor: DoctorSummary? = null,
     val reasonForAdmission: String,
     val provisionalDiagnosis: String,
+    // Spec §29's doctor-set vitals frequency (null = no order set yet;
+    // clients fall back to their own default heuristic — see
+    // IpdTaskListDerivation's own doc comment).
+    val vitalsFrequencyHours: Int? = null,
     val dischargeInitiatedAt: String? = null,
     val dischargedAt: String? = null,
     val createdAt: String = "",
