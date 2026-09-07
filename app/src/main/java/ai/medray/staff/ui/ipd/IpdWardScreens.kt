@@ -137,6 +137,24 @@ private fun OutboxSyncBanner(status: IpdOutboxSyncStatus) {
     }
 }
 
+/**
+ * Ward Home / Patient List / Task List's load-failure banner — refreshAdmissions()
+ * previously masked every failure as a false "no inpatients" empty state; it
+ * now surfaces a genuine failure (no cached data to fall back to) through
+ * this. Structurally identical to OutboxSyncBanner's failed branch, just a
+ * single message instead of a pending/failed distinction.
+ */
+@Composable
+private fun ErrorBanner(message: String) {
+    Surface(color = StatusErrorBg, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, StatusErrorBorder), modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = StatusErrorText, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = StatusErrorText)
+        }
+    }
+}
+
 @Composable
 private fun EmptyState(title: String, subtitle: String) {
     Surface(
@@ -168,6 +186,7 @@ fun IpdWardHomeScreen(
     admissions: List<IpdAdmission>,
     tasks: List<IpdTaskListItem>,
     outboxStatus: IpdOutboxSyncStatus = IpdOutboxSyncStatus(0, 0),
+    errorMessage: String? = null,
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onPatientsClick: () -> Unit,
@@ -199,6 +218,10 @@ fun IpdWardHomeScreen(
                         Text("Welcome back, ${it.trim().split(" ").firstOrNull() ?: it}", style = MaterialTheme.typography.bodySmall, color = Slate500)
                     }
                 }
+            }
+
+            if (errorMessage != null) {
+                item { ErrorBanner(errorMessage) }
             }
 
             if (outboxStatus.hasAnything) {
@@ -304,6 +327,7 @@ fun IpdPatientListScreen(
     admissions: List<IpdAdmission>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
+    errorMessage: String? = null,
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onPatientClick: (IpdAdmission) -> Unit,
@@ -328,6 +352,9 @@ fun IpdPatientListScreen(
         ) {
             item {
                 Text("Inpatients", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Slate900)
+            }
+            if (errorMessage != null) {
+                item { ErrorBanner(errorMessage) }
             }
             item {
                 OutlinedTextField(
@@ -378,6 +405,7 @@ private fun TaskRow(task: IpdTaskListItem, onClick: () -> Unit) {
 @Composable
 fun IpdTaskListScreen(
     tasks: List<IpdTaskListItem>,
+    errorMessage: String? = null,
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onTaskClick: (IpdTaskListItem) -> Unit,
@@ -394,6 +422,9 @@ fun IpdTaskListScreen(
                     Text("Pending Tasks", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Slate900)
                     Text("${tasks.size} across the ward", style = MaterialTheme.typography.bodySmall, color = Slate500)
                 }
+            }
+            if (errorMessage != null) {
+                item { ErrorBanner(errorMessage) }
             }
             if (tasks.isEmpty()) {
                 item { EmptyState("All caught up", "No pending vitals, medications, or investigations right now.") }

@@ -462,6 +462,7 @@ fun StaffAppNavHost(
     var ipdAdmissions by remember { mutableStateOf<List<IpdAdmission>>(emptyList()) }
     var ipdTasks by remember { mutableStateOf<List<IpdTaskListItem>>(emptyList()) }
     var ipdWardLoading by remember { mutableStateOf(false) }
+    var ipdWardError by remember { mutableStateOf<String?>(null) }
     var ipdOutboxStatus by remember { mutableStateOf(IpdOutboxSyncStatus(pendingCount = 0, failedCount = 0)) }
     val ipdPendingTaskCount = ipdTasks.size
     var ipdWardSearchQuery by remember { mutableStateOf("") }
@@ -573,24 +574,29 @@ fun StaffAppNavHost(
     suspend fun refreshIpdWard() {
         ipdWardLoading = true
         try {
-            val admissions = ipdRepo.refreshAdmissions(AdmissionStatus.INPATIENT).getOrDefault(emptyList())
-            ipdAdmissions = admissions
-            ipdTasks = coroutineScope {
-                admissions.map { admission ->
-                    async {
-                        val meds = ipdRepo.listMedicationOrders(admission.id).getOrDefault(emptyList())
-                            .flatMap { it.administrations }
-                        val investigations = ipdRepo.listInvestigations(admission.id).getOrDefault(emptyList())
-                        val lastVitals = ipdRepo.listVitals(admission.id).getOrDefault(emptyList()).firstOrNull()?.recordedAt
-                        IpdTaskListDerivation.deriveTasksForAdmission(
-                            admission = admission,
-                            medicationAdministrations = meds,
-                            investigations = investigations,
-                            lastVitalsRecordedAt = lastVitals
-                        )
+            ipdRepo.refreshAdmissions().fold(
+                onSuccess = { admissions ->
+                    ipdWardError = null
+                    ipdAdmissions = admissions
+                    ipdTasks = coroutineScope {
+                        admissions.map { admission ->
+                            async {
+                                val meds = ipdRepo.listMedicationOrders(admission.id).getOrDefault(emptyList())
+                                    .flatMap { it.administrations }
+                                val investigations = ipdRepo.listInvestigations(admission.id).getOrDefault(emptyList())
+                                val lastVitals = ipdRepo.listVitals(admission.id).getOrDefault(emptyList()).firstOrNull()?.recordedAt
+                                IpdTaskListDerivation.deriveTasksForAdmission(
+                                    admission = admission,
+                                    medicationAdministrations = meds,
+                                    investigations = investigations,
+                                    lastVitalsRecordedAt = lastVitals
+                                )
+                            }
+                        }.awaitAll().flatten()
                     }
-                }.awaitAll().flatten()
-            }
+                },
+                onFailure = { e -> ipdWardError = e.message ?: "Couldn't load ward patients" },
+            )
             ipdOutboxStatus = ipdRepo.getOutboxSyncStatus()
         } finally {
             ipdWardLoading = false
@@ -1166,6 +1172,7 @@ fun StaffAppNavHost(
                         admissions = ipdAdmissions,
                         tasks = ipdTasks,
                         outboxStatus = ipdOutboxStatus,
+                        errorMessage = ipdWardError,
                         isLoading = ipdWardLoading,
                         onRefresh = { coroutineScope.launch { refreshIpdWard() } },
                         onPatientsClick = { navController.navigate(Screen.IpdPatientList.route) },
@@ -1184,6 +1191,7 @@ fun StaffAppNavHost(
                         admissions = ipdAdmissions,
                         searchQuery = ipdWardSearchQuery,
                         onSearchChange = { ipdWardSearchQuery = it },
+                        errorMessage = ipdWardError,
                         isLoading = ipdWardLoading,
                         onRefresh = { coroutineScope.launch { refreshIpdWard() } },
                         onPatientClick = { admission ->
@@ -1197,6 +1205,7 @@ fun StaffAppNavHost(
                 composable(Screen.IpdTaskList.route) {
                     IpdTaskListScreen(
                         tasks = ipdTasks,
+                        errorMessage = ipdWardError,
                         isLoading = ipdWardLoading,
                         onRefresh = { coroutineScope.launch { refreshIpdWard() } },
                         onTaskClick = { task ->

@@ -15,6 +15,9 @@ import ai.medray.staff.data.outbox.RegisterQueueCommandPayload
 import ai.medray.staff.data.outbox.UpdateStatusCommandPayload
 import ai.medray.staff.data.outbox.UpdateVitalsCommandPayload
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -1017,11 +1020,14 @@ class ChatRepository(private val context: Context) {
  * STAFF APP = Nurse). See ipd/IpdWardScreens.kt / IpdPatientChartScreen.kt
  * for the screens this backs.
  *
- * Only the ward roster (`listAdmissions`) caches-and-falls-back, same as
- * QueueRepository.refreshQueue() — everything else (vitals/notes/
- * medication/investigation/timeline detail) is a live, uncached read: a
- * stale cached clinical reading shown as current is a worse failure mode
- * than a clear "couldn't load" error.
+ * Only the ward roster (`refreshAdmissions`) caches-and-falls-back —
+ * everything else (vitals/notes/medication/investigation/timeline detail)
+ * is a live, uncached read: a stale cached clinical reading shown as
+ * current is a worse failure mode than a clear "couldn't load" error.
+ * `refreshAdmissions` only masks a failure as success when the cache
+ * actually has something to fall back to; it returns Result.failure when
+ * there's a genuine error and nothing cached (a distinction
+ * QueueRepository.refreshQueue() does not make — don't copy that one).
  */
 /** Ward Home's sync-status banner — see IpdRepository.getOutboxSyncStatus(). */
 data class IpdOutboxSyncStatus(val pendingCount: Int, val failedCount: Int) {
@@ -1048,24 +1054,43 @@ class IpdRepository(private val context: Context) {
     fun getLocalAdmissions(clinicId: String): Flow<List<IpdAdmission>> =
         db.ipdAdmissionDao().getAdmissions(clinicId).map { entities -> entities.map { it.toDomain() } }
 
-    suspend fun refreshAdmissions(status: AdmissionStatus? = AdmissionStatus.INPATIENT): Result<List<IpdAdmission>> = withContext(Dispatchers.IO) {
+    // GET /ipd/admissions only accepts a single status value server-side
+    // (admissionQuerySchema, api/src/routes/ipdAdmissions.ts) — not worth a
+    // shared-endpoint change just for this, so the default fetches both
+    // statuses a nurse still needs to act on and merges them client-side.
+    // DISCHARGE_INITIATED is included because that admission still needs
+    // active nursing care (vitals/medication) until actually signed off —
+    // it previously vanished from the ward roster the instant discharge
+    // was initiated, with no way to navigate back to it.
+    suspend fun refreshAdmissions(
+        statuses: List<AdmissionStatus> = listOf(AdmissionStatus.INPATIENT, AdmissionStatus.DISCHARGE_INITIATED),
+    ): Result<List<IpdAdmission>> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
+        suspend fun localFallback() = if (clinicId != null) db.ipdAdmissionDao().getAdmissionsSync(clinicId).map { it.toDomain() } else emptyList()
         try {
             // limit is capped at 50 server-side (admissionQuerySchema,
             // api/src/routes/ipdAdmissions.ts) — a higher value 400s the
             // whole request, confirmed live against a real device.
-            val res = api.listIpdAdmissions(status = status, limit = 50, clinicId = clinicId)
-            if (res.isSuccessful && res.body() != null) {
-                val admissions = res.body()!!
+            val results = coroutineScope {
+                statuses.map { s -> async { api.listIpdAdmissions(status = s, limit = 50, clinicId = clinicId) } }.awaitAll()
+            }
+            if (results.all { it.isSuccessful } && results.all { it.body() != null }) {
+                val admissions = results.flatMap { it.body()!! }.distinctBy { it.id }
                 if (clinicId != null) db.ipdAdmissionDao().insertAdmissions(admissions.map { IpdAdmissionEntity.fromDomain(it) })
                 Result.success(admissions)
             } else {
-                val local = if (clinicId != null) db.ipdAdmissionDao().getAdmissionsSync(clinicId).map { it.toDomain() } else emptyList()
-                Result.success(local)
+                // Only mask this as success when there's actually cached
+                // data to fall back to — QueueRepository.refreshQueue()'s
+                // own version of this (which this function's doc comment
+                // used to claim was an equivalent precedent) turns out to
+                // always return Result.success even with an empty cache on
+                // a genuine failure; that's not repeated here.
+                val local = localFallback()
+                if (local.isNotEmpty()) Result.success(local) else Result.failure(Exception("Couldn't load ward patients (server error)"))
             }
         } catch (e: Exception) {
-            val local = if (clinicId != null) db.ipdAdmissionDao().getAdmissionsSync(clinicId).map { it.toDomain() } else emptyList()
-            Result.success(local)
+            val local = localFallback()
+            if (local.isNotEmpty()) Result.success(local) else Result.failure(e)
         }
     }
 
