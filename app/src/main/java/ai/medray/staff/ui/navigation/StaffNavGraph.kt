@@ -494,6 +494,10 @@ fun StaffAppNavHost(
             val medsDeferred = async { loadSection("Medications") { ipdRepo.listMedicationOrders(admissionId) } }
             val investigationsDeferred = async { loadSection("Investigations") { ipdRepo.listInvestigations(admissionId) } }
             val timelineDeferred = async { loadSection("Timeline") { ipdRepo.listTimeline(admissionId) } }
+            // Empty (not a failure) before discharge is ever initiated — the
+            // backend only seeds rows at that point (spec §17's checklist),
+            // same "nothing to show yet" shape as every other empty section.
+            val checklistDeferred = async { loadSection("Discharge Checklist") { ipdRepo.listDischargeChecklist(admissionId) } }
             ipdChart = IpdChartData(
                 admission = admissionRes.getOrNull(),
                 vitals = vitalsDeferred.await(),
@@ -502,6 +506,7 @@ fun StaffAppNavHost(
                 medicationOrders = medsDeferred.await(),
                 investigations = investigationsDeferred.await(),
                 timeline = timelineDeferred.await(),
+                dischargeChecklist = checklistDeferred.await(),
                 isLoading = false,
                 failedSections = failed,
             )
@@ -1285,6 +1290,13 @@ fun StaffAppNavHost(
                                     if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't save result", Toast.LENGTH_LONG).show()
                                     loadIpdChartData(admissionId)
                                     refreshIpdWard()
+                                }
+                            },
+                            onToggleChecklistItem = { id, completed ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.updateDischargeChecklistItem(id, completed)
+                                    if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
+                                    loadIpdChartData(admissionId)
                                 }
                             }
                         )

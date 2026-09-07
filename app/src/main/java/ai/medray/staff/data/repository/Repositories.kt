@@ -1275,4 +1275,28 @@ class IpdRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun listDischargeChecklist(admissionId: String): Result<List<IpdDischargeChecklistItem>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listDischargeChecklist(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load the discharge checklist"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Online-only — same reasoning as updateInvestigationStatus: infrequent,
+    // deliberate ticks, not a high-volume write worth an offline outbox.
+    suspend fun updateDischargeChecklistItem(id: String, completed: Boolean): Result<IpdDischargeChecklistItem> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateDischargeChecklistItem(id = id, req = UpdateChecklistItemRequest(completed), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't update — try again once connected"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Offline — try again once connected"))
+        }
+    }
 }

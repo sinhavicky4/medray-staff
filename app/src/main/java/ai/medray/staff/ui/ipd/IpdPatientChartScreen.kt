@@ -35,6 +35,7 @@ data class IpdChartData(
     val medicationOrders: List<MedicationOrder> = emptyList(),
     val investigations: List<InvestigationOrder> = emptyList(),
     val timeline: List<IpdTimelineEvent> = emptyList(),
+    val dischargeChecklist: List<IpdDischargeChecklistItem> = emptyList(),
     val isLoading: Boolean = false,
     // Named sections whose own fetch failed independently of the others
     // (e.g. a mid-load network blip during just the Medications call) —
@@ -68,6 +69,7 @@ fun IpdPatientChartScreen(
     onUpdateMedicationAdministrationStatus: (String, UpdateMedicationAdministrationStatusRequest) -> Unit,
     onUpdateInvestigationStatus: (String, InvestigationOrderStatus) -> Unit,
     onAddInvestigationResult: (String, AddInvestigationResultRequest) -> Unit,
+    onToggleChecklistItem: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -144,10 +146,9 @@ fun IpdPatientChartScreen(
                     }
                     Text("LOS ${lengthOfStayDays(admission)}d", style = MaterialTheme.typography.bodySmall, color = Slate500)
 
-                    // Discharge checklist gap (§47 Phase 3 bullet with zero
-                    // spec elaboration, no backend model) — read-only status
-                    // badge only, no interactive checklist. See the plan's
-                    // own resolution note.
+                    // Spec §17/§47 Phase 3's discharge checklist — now a
+                    // real interactive checklist (backend-seeded 7 fixed
+                    // items) instead of just this status badge.
                     if (admission.status == AdmissionStatus.DISCHARGE_INITIATED) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(color = StatusWarningBg, shape = RoundedCornerShape(8.dp)) {
@@ -159,6 +160,8 @@ fun IpdPatientChartScreen(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        DischargeChecklistCard(chart.dischargeChecklist, onToggleChecklistItem)
                     } else if (admission.dischargedAt != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(color = Slate100, shape = RoundedCornerShape(8.dp)) {
@@ -277,6 +280,50 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 private fun EmptyRow(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = Slate400, modifier = Modifier.padding(vertical = 12.dp))
+}
+
+private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType): String = when (itemType) {
+    IpdDischargeChecklistItemType.VITALS_RECORDED -> "Vitals recorded at discharge"
+    IpdDischargeChecklistItemType.MEDICATIONS_RECONCILED -> "Discharge medications reconciled"
+    IpdDischargeChecklistItemType.BELONGINGS_RETURNED -> "Patient belongings returned"
+    IpdDischargeChecklistItemType.PATIENT_EDUCATED -> "Discharge instructions explained"
+    IpdDischargeChecklistItemType.SUMMARY_HANDED -> "Discharge summary handed to patient"
+    IpdDischargeChecklistItemType.BED_CLEARED -> "Bed/room cleared"
+    IpdDischargeChecklistItemType.FOLLOWUP_SCHEDULED -> "Follow-up appointment scheduled"
+}
+
+/**
+ * Spec §17/§47 Phase 3 — the interactive checklist that used to be just a
+ * "Discharge in progress" badge. Plain checkbox per item, no notes input
+ * yet (the backend field exists for later — see UpdateChecklistItemRequest's
+ * doc comment). Not a gate on the doctor's discharge-sign action — purely
+ * an operational tracker for the nurse/reception staff actually doing this
+ * work.
+ */
+@Composable
+private fun DischargeChecklistCard(items: List<IpdDischargeChecklistItem>, onToggle: (String, Boolean) -> Unit) {
+    if (items.isEmpty()) return
+    val doneCount = items.count { it.completed }
+    Surface(color = PureWhite, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                "Discharge Checklist ($doneCount/${items.size})",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Slate900
+            )
+            items.forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = item.completed, onCheckedChange = { checked -> onToggle(item.id, checked) })
+                    Text(
+                        checklistItemLabel(item.itemType),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.completed) Slate500 else Slate800
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

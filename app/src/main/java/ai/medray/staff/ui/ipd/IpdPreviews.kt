@@ -115,7 +115,8 @@ private fun IpdPatientChartScreenPreview() {
             onCreateMedicationAdministration = {},
             onUpdateMedicationAdministrationStatus = { _, _ -> },
             onUpdateInvestigationStatus = { _, _ -> },
-            onAddInvestigationResult = { _, _ -> }
+            onAddInvestigationResult = { _, _ -> },
+            onToggleChecklistItem = { _, _ -> }
         )
     }
 }

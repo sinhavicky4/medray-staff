@@ -345,6 +345,30 @@ data class AddInvestigationResultRequest(
     val documentId: String? = null
 )
 
+// Spec §17/§47 Phase 3's discharge checklist — seeded server-side (7 fixed
+// items, one per IpdDischargeChecklistItemType) the moment discharge is
+// initiated. `notes` is optional and only ever set by an explicit toggle
+// call that includes it — the UI here doesn't collect it yet (V1 keeps to
+// a plain checkbox per item), but the field is read/round-tripped since
+// the backend already supports it.
+enum class IpdDischargeChecklistItemType {
+    VITALS_RECORDED, MEDICATIONS_RECONCILED, BELONGINGS_RETURNED, PATIENT_EDUCATED,
+    SUMMARY_HANDED, BED_CLEARED, FOLLOWUP_SCHEDULED
+}
+
+data class IpdDischargeChecklistItem(
+    val id: String,
+    val itemType: IpdDischargeChecklistItemType,
+    val completed: Boolean,
+    val completedAt: String? = null,
+    val completedBy: ChecklistCompletedBy? = null,
+    val notes: String? = null
+)
+
+data class ChecklistCompletedBy(val id: String, val fullName: String)
+
+data class UpdateChecklistItemRequest(val completed: Boolean, val notes: String? = null)
+
 data class IpdTimelineEvent(
     val id: String,
     val eventType: String,
@@ -736,6 +760,19 @@ interface StaffApiService {
         @Body req: AddInvestigationResultRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<InvestigationOrder>
+
+    @GET("ipd/discharge/{admissionId}/checklist")
+    suspend fun listDischargeChecklist(
+        @Path("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<IpdDischargeChecklistItem>>
+
+    @PATCH("ipd/discharge/checklist/{id}")
+    suspend fun updateDischargeChecklistItem(
+        @Path("id") id: String,
+        @Body req: UpdateChecklistItemRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdDischargeChecklistItem>
 
     @GET("ipd/timeline")
     suspend fun listIpdTimeline(
