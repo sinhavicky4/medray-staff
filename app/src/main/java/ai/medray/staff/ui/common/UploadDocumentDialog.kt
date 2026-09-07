@@ -1,9 +1,12 @@
 package ai.medray.staff.ui.common
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -103,6 +106,31 @@ fun UploadDocumentDialog(
             cameraLauncher.launch(uri)
         } catch (e: Exception) {
             Toast.makeText(context, "Could not open camera: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // AndroidManifest.xml declares CAMERA, which means Android requires it to
+    // be runtime-granted before the delegated ACTION_IMAGE_CAPTURE intent
+    // above (TakePicture()) will actually open — declaring it without ever
+    // requesting it is exactly what made "Scan Report" silently fail with no
+    // permission. Same check-then-request shape as the doctor app's
+    // onMicClicked/micPermissionLauncher (PrescriptionChatPanel.kt).
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(context, "Camera permission is needed to scan a report", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun onScanClicked() {
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            launchCamera()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -260,7 +288,7 @@ fun UploadDocumentDialog(
                         }
 
                         OutlinedButton(
-                            onClick = { launchCamera() },
+                            onClick = { onScanClicked() },
                             enabled = !isUploading && !isReadingFile,
                             shape = RoundedCornerShape(12.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF99F6E4)),
