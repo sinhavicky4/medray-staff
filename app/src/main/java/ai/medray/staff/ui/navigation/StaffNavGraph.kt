@@ -771,6 +771,7 @@ fun StaffAppNavHost(
                     pendingSelfCheckInCount = selfCheckInsList.size,
                     chatAssistantEnabled = currentUser?.clinic?.chatAssistantEnabled == true,
                     staffManagementEnabled = currentUser?.isClinicAdmin == true,
+                    ipdFeatureEnabled = currentUser?.clinic?.ipdEnabled == true,
                     onNavigate = { route ->
                         coroutineScope.launch { drawerState.close() }
                         if (route != currentRoute) {
