@@ -3,7 +3,9 @@ package ai.medray.staff.ui.navigation
 import ai.medray.staff.core.config.BrandConfig
 import ai.medray.staff.ui.common.PrescriptionViewerDialog
 
+import android.Manifest
 import android.app.Activity
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Context
@@ -40,8 +42,10 @@ import ai.medray.staff.ui.appointments.BookAppointmentDialog
 import ai.medray.staff.ui.splash.SplashScreen
 import ai.medray.staff.ui.auth.LoginScreen
 import ai.medray.staff.ui.auth.OtpVerificationScreen
+import ai.medray.staff.ui.auth.PermissionsPrimerScreen
 import ai.medray.staff.ui.auth.ClinicSignupScreen
 import ai.medray.staff.ui.auth.ClinicSignupFormState
+import ai.medray.staff.data.local.AppPreferences
 import ai.medray.staff.ui.admin.StaffManagementScreen
 import ai.medray.staff.ui.admin.AddEditStaffDialog
 import ai.medray.staff.ui.billing.BillingScreen
@@ -320,6 +324,7 @@ sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Login : Screen("login")
     object Otp : Screen("otp")
+    object Permissions : Screen("permissions")
     object Queue : Screen("queue")
     object Patients : Screen("patients")
     object Appointments : Screen("appointments")
@@ -367,6 +372,17 @@ fun StaffAppNavHost(
     val navController = rememberNavController()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Single post-auth landing point for all four successful-auth paths
+    // below (Splash's auto-restore, password login, Google sign-in, OTP
+    // verify) — routes through Screen.Permissions exactly once per device
+    // (AppPreferences.hasSeenPermissionsPrimer), straight to Queue every
+    // login after that. Keeps each call site's own popUpTo shape unchanged.
+    fun navigateAfterAuth(popUpToBuilder: androidx.navigation.NavOptionsBuilder.() -> Unit) {
+        val destination = if (AppPreferences.hasSeenPermissionsPrimer(context)) Screen.Queue.route else Screen.Permissions.route
+        navController.navigate(destination, popUpToBuilder)
+    }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val googleProvider = remember { GoogleIdTokenProvider() }
 
@@ -434,7 +450,7 @@ fun StaffAppNavHost(
                 isGoogleLoading = false
                 if (authRes.isSuccess) {
                     currentUser = authRes.getOrNull()
-                    navController.navigate(Screen.Queue.route) { popUpTo(0) }
+                    navigateAfterAuth { popUpTo(0) }
                 } else {
                     authError = authRes.exceptionOrNull()?.message ?: "Google sign-in failed on server"
                 }
@@ -869,9 +885,7 @@ fun StaffAppNavHost(
                                     val res = authRepo.getMe()
                                     if (res.isSuccess) {
                                         currentUser = res.getOrNull()
-                                        navController.navigate(Screen.Queue.route) {
-                                            popUpTo(Screen.Splash.route) { inclusive = true }
-                                        }
+                                        navigateAfterAuth { popUpTo(Screen.Splash.route) { inclusive = true } }
                                         return@launch
                                     }
                                 }
@@ -914,7 +928,7 @@ fun StaffAppNavHost(
                                 isPasswordLoading = false
                                 if (res.isSuccess) {
                                     currentUser = res.getOrNull()
-                                    navController.navigate(Screen.Queue.route) { popUpTo(0) }
+                                    navigateAfterAuth { popUpTo(0) }
                                 } else {
                                     authError = res.exceptionOrNull()?.message ?: "Login failed"
                                 }
@@ -933,7 +947,7 @@ fun StaffAppNavHost(
                                     isGoogleLoading = false
                                     if (authRes.isSuccess) {
                                         currentUser = authRes.getOrNull()
-                                        navController.navigate(Screen.Queue.route) { popUpTo(0) }
+                                        navigateAfterAuth { popUpTo(0) }
                                     } else {
                                         authError = authRes.exceptionOrNull()?.message ?: "Google sign-in failed on server"
                                     }
@@ -1010,7 +1024,7 @@ fun StaffAppNavHost(
                                 isAuthLoading = false
                                 if (res.isSuccess) {
                                     currentUser = res.getOrNull()
-                                    navController.navigate(Screen.Queue.route) { popUpTo(0) }
+                                    navigateAfterAuth { popUpTo(0) }
                                 } else {
                                     authError = res.exceptionOrNull()?.message ?: "Invalid OTP"
                                 }
@@ -1024,6 +1038,31 @@ fun StaffAppNavHost(
                         },
                         isVerifying = isAuthLoading,
                         error = authError
+                    )
+                }
+
+                // 2b. Permissions Primer — shown once per device, right after
+                // the first successful login (navigateAfterAuth() above),
+                // before Queue. See PermissionsPrimerScreen's own doc comment.
+                composable(Screen.Permissions.route) {
+                    val permissionsToRequest = buildList {
+                        add(Manifest.permission.CAMERA)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    val permissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestMultiplePermissions()
+                    ) {
+                        // Granted or denied, respected either way — see
+                        // PermissionsPrimerScreen's doc comment. Individual
+                        // features (e.g. UploadDocumentDialog's Scan Report)
+                        // re-request on their own if this was denied.
+                        AppPreferences.setSeenPermissionsPrimer(context)
+                        navController.navigate(Screen.Queue.route) {
+                            popUpTo(Screen.Permissions.route) { inclusive = true }
+                        }
+                    }
+                    PermissionsPrimerScreen(
+                        onContinue = { permissionLauncher.launch(permissionsToRequest.toTypedArray()) }
                     )
                 }
 

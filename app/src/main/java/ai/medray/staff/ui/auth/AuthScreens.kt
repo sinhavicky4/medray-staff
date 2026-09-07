@@ -757,3 +757,139 @@ fun OtpVerificationScreen(
         }
     }
 }
+
+private data class PrimerPermissionRow(val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val description: String)
+
+/**
+ * Shown exactly once, right after the very first successful login on this
+ * device (StaffNavGraph.kt's navigateAfterAuth(), gated on
+ * AppPreferences.hasSeenPermissionsPrimer) — asks up front for every
+ * permission the app needs, instead of each feature discovering a missing
+ * permission on its own the way "Scan Report" used to (UploadDocumentDialog.kt).
+ * "Continue" launches the system dialogs for both; whatever the user
+ * decides there is respected as-is, same as everywhere else in the app —
+ * this screen never re-prompts or blocks on a denial.
+ */
+@Composable
+fun PermissionsPrimerScreen(
+    onContinue: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val permissions = listOf(
+        PrimerPermissionRow(
+            icon = Icons.Filled.CameraAlt,
+            title = "Camera",
+            description = "To scan patient reports and documents from Scan Report."
+        ),
+        PrimerPermissionRow(
+            icon = Icons.Filled.Notifications,
+            title = "Notifications",
+            description = "To alert you about queue and appointment updates."
+        ),
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(HeroGradientStart, HeroGradientMiddle, HeroGradientEnd)))
+    ) {
+        WavyBackground(modifier = Modifier.fillMaxSize())
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, CardBorderColor),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(Color(0xFFEFF6FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Shield,
+                            contentDescription = null,
+                            tint = MedRayPrimaryBlue,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text(
+                        "Before You Start",
+                        fontFamily = HeadingFontFamily,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MedRayTextDark
+                    )
+
+                    Text(
+                        "MedRay AI Staff needs a couple of permissions to work smoothly.",
+                        fontFamily = InterFontFamily,
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    permissions.forEach { permission ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+                                .padding(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(permission.icon, contentDescription = null, tint = MedRayPrimaryBlue, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(permission.title, fontFamily = HeadingFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MedRayTextDark)
+                                Text(permission.description, fontFamily = InterFontFamily, fontSize = 12.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Button(
+                        onClick = onContinue,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayPrimaryBlue),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text(
+                            "Continue",
+                            fontFamily = HeadingFontFamily,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
