@@ -149,7 +149,11 @@ data class Clinic(
     val upiId: String? = null,
     val upiVpa: String? = null, // VPA for dynamic UPI QR generation
     val defaultConsultationFee: Double = 500.0,
-    val chatAssistantEnabled: Boolean = false
+    val chatAssistantEnabled: Boolean = false,
+    // Master gate for the whole IPD module (Clinic.ipdEnabled — schema.prisma).
+    // Off by default, Super-Admin-only-settable; gates the "IPD Ward" drawer
+    // item in MedRayDrawer.kt.
+    val ipdEnabled: Boolean = false
 ) : java.io.Serializable
 
 data class User(

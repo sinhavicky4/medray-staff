@@ -63,8 +63,22 @@ interface QueueDao {
 }
 
 @Dao
+interface IpdAdmissionDao {
+    @Query("SELECT * FROM ipd_admissions WHERE clinicId = :clinicId ORDER BY admissionDateTime DESC")
+    fun getAdmissions(clinicId: String): Flow<List<IpdAdmissionEntity>>
+
+    @Query("SELECT * FROM ipd_admissions WHERE clinicId = :clinicId ORDER BY admissionDateTime DESC")
+    suspend fun getAdmissionsSync(clinicId: String): List<IpdAdmissionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAdmissions(admissions: List<IpdAdmissionEntity>)
+}
+
+@Dao
 interface OutboxDao {
-    @Query("SELECT * FROM outbox_commands ORDER BY createdAt ASC")
+    // Excludes permanently-failed commands — those stop being retried, see
+    // OutboxCommandEntity.failedPermanently's own doc comment.
+    @Query("SELECT * FROM outbox_commands WHERE failedPermanently = 0 ORDER BY createdAt ASC")
     suspend fun getAllPending(): List<OutboxCommandEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -75,4 +89,13 @@ interface OutboxDao {
 
     @Query("UPDATE outbox_commands SET attempts = attempts + 1, lastError = :error WHERE id = :id")
     suspend fun recordAttemptFailure(id: String, error: String)
+
+    @Query("UPDATE outbox_commands SET failedPermanently = 1 WHERE id = :id")
+    suspend fun markFailedPermanently(id: String)
+
+    @Query("SELECT COUNT(*) FROM outbox_commands WHERE failedPermanently = 0")
+    suspend fun getPendingCount(): Int
+
+    @Query("SELECT COUNT(*) FROM outbox_commands WHERE failedPermanently = 1")
+    suspend fun getFailedCount(): Int
 }

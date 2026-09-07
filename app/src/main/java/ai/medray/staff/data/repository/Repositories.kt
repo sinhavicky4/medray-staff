@@ -6,11 +6,18 @@ import ai.medray.staff.data.local.QueueEntryEntity
 import ai.medray.staff.data.local.StaffDatabase
 import ai.medray.staff.data.model.*
 import ai.medray.staff.data.network.*
+import ai.medray.staff.data.local.IpdAdmissionEntity
+import ai.medray.staff.data.outbox.CreateIpdVitalsCommandPayload
+import ai.medray.staff.data.outbox.CreateMedicationAdministrationCommandPayload
+import ai.medray.staff.data.outbox.CreateNursingNoteCommandPayload
 import ai.medray.staff.data.outbox.OutboxManager
 import ai.medray.staff.data.outbox.RegisterQueueCommandPayload
 import ai.medray.staff.data.outbox.UpdateStatusCommandPayload
 import ai.medray.staff.data.outbox.UpdateVitalsCommandPayload
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -563,7 +570,8 @@ class PatientRepository(private val context: Context) {
         mimeType: String,
         kind: String = "REPORT",
         visitId: String? = null,
-        notes: String? = null
+        notes: String? = null,
+        admissionId: String? = null
     ): Result<PatientDocument> = withContext(Dispatchers.IO) {
         try {
             val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
@@ -571,8 +579,9 @@ class PatientRepository(private val context: Context) {
             val kindPart = kind.toRequestBody("text/plain".toMediaTypeOrNull())
             val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
             val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val admissionIdPart = admissionId?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart, admissionIdPart)
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)
             } else {
@@ -784,7 +793,8 @@ class DocumentRepository(private val context: Context) {
         file: File,
         kind: DocumentKind,
         visitId: String? = null,
-        notes: String? = null
+        notes: String? = null,
+        admissionId: String? = null
     ): Result<PatientDocument> = withContext(Dispatchers.IO) {
         try {
             val reqFile = file.asRequestBody("application/octet-stream".toMediaTypeOrNull())
@@ -792,8 +802,9 @@ class DocumentRepository(private val context: Context) {
             val kindPart = kind.serverKind.toRequestBody("text/plain".toMediaTypeOrNull())
             val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
             val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val admissionIdPart = admissionId?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart, admissionIdPart)
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)
             } else {
@@ -812,7 +823,8 @@ class DocumentRepository(private val context: Context) {
         mimeType: String,
         kind: String = "REPORT",
         visitId: String? = null,
-        notes: String? = null
+        notes: String? = null,
+        admissionId: String? = null
     ): Result<PatientDocument> = withContext(Dispatchers.IO) {
         try {
             val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
@@ -820,8 +832,9 @@ class DocumentRepository(private val context: Context) {
             val kindPart = kind.toRequestBody("text/plain".toMediaTypeOrNull())
             val visitIdPart = visitId?.toRequestBody("text/plain".toMediaTypeOrNull())
             val notesPart = notes?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val admissionIdPart = admissionId?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart)
+            val res = api.uploadDocument(patientId, filePart, kindPart, visitIdPart, notesPart, admissionIdPart)
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)
             } else {
@@ -998,6 +1011,292 @@ class ChatRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+}
+
+/**
+ * IPD (Inpatient Department) — Phase 3 staff app, Nurse-scoped (spec §30:
+ * STAFF APP = Nurse). See ipd/IpdWardScreens.kt / IpdPatientChartScreen.kt
+ * for the screens this backs.
+ *
+ * Only the ward roster (`refreshAdmissions`) caches-and-falls-back —
+ * everything else (vitals/notes/medication/investigation/timeline detail)
+ * is a live, uncached read: a stale cached clinical reading shown as
+ * current is a worse failure mode than a clear "couldn't load" error.
+ * `refreshAdmissions` only masks a failure as success when the cache
+ * actually has something to fall back to; it returns Result.failure when
+ * there's a genuine error and nothing cached (a distinction
+ * QueueRepository.refreshQueue() does not make — don't copy that one).
+ */
+/** Ward Home's sync-status banner — see IpdRepository.getOutboxSyncStatus(). */
+data class IpdOutboxSyncStatus(val pendingCount: Int, val failedCount: Int) {
+    val hasAnything: Boolean get() = pendingCount > 0 || failedCount > 0
+}
+
+class IpdRepository(private val context: Context) {
+    private val api = ApiClient.getService(context)
+    private val db = StaffDatabase.getDatabase(context)
+    private val outbox = OutboxManager(context)
+    private val cookieJar = ApiClient.getCookieJar(context)
+
+    // Vitals/nursing-note/medication-administration writes fall back to the
+    // Outbox on failure (see OutboxManager/OutboxSyncWorker) — this backs
+    // Ward Home's banner so a nurse can see writes are waiting (or have
+    // permanently failed) to sync, instead of believing they all saved.
+    suspend fun getOutboxSyncStatus(): IpdOutboxSyncStatus = withContext(Dispatchers.IO) {
+        IpdOutboxSyncStatus(
+            pendingCount = db.outboxDao().getPendingCount(),
+            failedCount = db.outboxDao().getFailedCount(),
+        )
+    }
+
+    fun getLocalAdmissions(clinicId: String): Flow<List<IpdAdmission>> =
+        db.ipdAdmissionDao().getAdmissions(clinicId).map { entities -> entities.map { it.toDomain() } }
+
+    // GET /ipd/admissions only accepts a single status value server-side
+    // (admissionQuerySchema, api/src/routes/ipdAdmissions.ts) — not worth a
+    // shared-endpoint change just for this, so the default fetches both
+    // statuses a nurse still needs to act on and merges them client-side.
+    // DISCHARGE_INITIATED is included because that admission still needs
+    // active nursing care (vitals/medication) until actually signed off —
+    // it previously vanished from the ward roster the instant discharge
+    // was initiated, with no way to navigate back to it.
+    suspend fun refreshAdmissions(
+        statuses: List<AdmissionStatus> = listOf(AdmissionStatus.INPATIENT, AdmissionStatus.DISCHARGE_INITIATED),
+    ): Result<List<IpdAdmission>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        suspend fun localFallback() = if (clinicId != null) db.ipdAdmissionDao().getAdmissionsSync(clinicId).map { it.toDomain() } else emptyList()
+        try {
+            // limit is capped at 50 server-side (admissionQuerySchema,
+            // api/src/routes/ipdAdmissions.ts) — a higher value 400s the
+            // whole request, confirmed live against a real device.
+            val results = coroutineScope {
+                statuses.map { s -> async { api.listIpdAdmissions(status = s, limit = 50, clinicId = clinicId) } }.awaitAll()
+            }
+            if (results.all { it.isSuccessful } && results.all { it.body() != null }) {
+                val admissions = results.flatMap { it.body()!! }.distinctBy { it.id }
+                if (clinicId != null) db.ipdAdmissionDao().insertAdmissions(admissions.map { IpdAdmissionEntity.fromDomain(it) })
+                Result.success(admissions)
+            } else {
+                // Only mask this as success when there's actually cached
+                // data to fall back to — QueueRepository.refreshQueue()'s
+                // own version of this (which this function's doc comment
+                // used to claim was an equivalent precedent) turns out to
+                // always return Result.success even with an empty cache on
+                // a genuine failure; that's not repeated here.
+                val local = localFallback()
+                if (local.isNotEmpty()) Result.success(local) else Result.failure(Exception("Couldn't load ward patients (server error)"))
+            }
+        } catch (e: Exception) {
+            val local = localFallback()
+            if (local.isNotEmpty()) Result.success(local) else Result.failure(e)
+        }
+    }
+
+    suspend fun getAdmission(admissionId: String): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.getIpdAdmission(id = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to load this patient's chart"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun listVitals(admissionId: String): Result<List<IpdVitalsReading>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdVitals(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load vitals"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Outbox-eligible — see the backend touch in ipdNursing.ts (client-id
+    // upsert) that makes this safe to retry.
+    suspend fun recordVitals(req: CreateIpdVitalsRequest): Result<IpdVitalsReading> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        val withId = if (req.id != null) req else req.copy(id = UUID.randomUUID().toString())
+        try {
+            val res = api.recordIpdVitals(req = withId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                outbox.enqueue("CREATE_IPD_VITALS", CreateIpdVitalsCommandPayload(clinicId, withId), withId.id!!)
+                Result.failure(Exception("Queued offline: will sync when connected"))
+            }
+        } catch (e: Exception) {
+            outbox.enqueue("CREATE_IPD_VITALS", CreateIpdVitalsCommandPayload(clinicId, withId), withId.id!!)
+            Result.failure(Exception("Saved offline: will sync automatically"))
+        }
+    }
+
+    suspend fun listNursingNotes(admissionId: String): Result<List<NursingNote>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listNursingNotes(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load nursing notes"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Read-only — no create here, doctors author these from the doctor
+    // app, not this Nurse-facing repository (see StaffApiService.kt's
+    // listProgressNotes doc comment).
+    suspend fun listProgressNotes(admissionId: String): Result<List<DoctorProgressNote>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listProgressNotes(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load progress notes"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun addNursingNote(req: CreateNursingNoteRequest): Result<NursingNote> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        val withId = if (req.id != null) req else req.copy(id = UUID.randomUUID().toString())
+        try {
+            val res = api.addNursingNote(req = withId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                outbox.enqueue("CREATE_NURSING_NOTE", CreateNursingNoteCommandPayload(clinicId, withId), withId.id!!)
+                Result.failure(Exception("Queued offline: will sync when connected"))
+            }
+        } catch (e: Exception) {
+            outbox.enqueue("CREATE_NURSING_NOTE", CreateNursingNoteCommandPayload(clinicId, withId), withId.id!!)
+            Result.failure(Exception("Saved offline: will sync automatically"))
+        }
+    }
+
+    suspend fun listMedicationOrders(admissionId: String): Result<List<MedicationOrder>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listMedicationOrders(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load medication orders"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createMedicationAdministration(req: CreateMedicationAdministrationRequest): Result<MedicationAdministration> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        val withId = if (req.id != null) req else req.copy(id = UUID.randomUUID().toString())
+        try {
+            val res = api.createMedicationAdministration(req = withId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                outbox.enqueue("CREATE_MEDICATION_ADMINISTRATION", CreateMedicationAdministrationCommandPayload(clinicId, withId), withId.id!!)
+                Result.failure(Exception("Queued offline: will sync when connected"))
+            }
+        } catch (e: Exception) {
+            outbox.enqueue("CREATE_MEDICATION_ADMINISTRATION", CreateMedicationAdministrationCommandPayload(clinicId, withId), withId.id!!)
+            Result.failure(Exception("Saved offline: will sync automatically"))
+        }
+    }
+
+    // Deliberately online-only, no Outbox — the state machine forbids a
+    // same-state retry (SCHEDULED->[DUE,CANCELLED], DUE->[ADMINISTERED,
+    // HELD,REFUSED,MISSED,CANCELLED], api/src/ipd/stateMachine.ts), so a
+    // naive retry-on-ambiguous-failure isn't safely idempotent here. A
+    // silently-queued-then-lost administration status is a real patient-
+    // safety risk (a nurse believing a dose was given/withheld when the
+    // write never actually landed) — same reasoning BillingRepository
+    // already applies to money.
+    suspend fun updateMedicationAdministrationStatus(id: String, req: UpdateMedicationAdministrationStatusRequest): Result<MedicationAdministration> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateMedicationAdministrationStatus(id = id, req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't update — try again once connected"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Offline — try again once connected"))
+        }
+    }
+
+    suspend fun listInvestigations(admissionId: String): Result<List<InvestigationOrder>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listInvestigations(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load investigations"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Online-only — infrequent, deliberate action; no client-id safety net
+    // server-side for this endpoint.
+    suspend fun updateInvestigationStatus(id: String, status: InvestigationOrderStatus): Result<InvestigationOrder> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateInvestigationStatus(id = id, req = UpdateInvestigationStatusRequest(status), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't update — try again once connected"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Offline — try again once connected"))
+        }
+    }
+
+    // Online-only — result-attach already depends on the (online-only)
+    // document-upload endpoint anyway, no point making half the flow
+    // offline-safe.
+    suspend fun addInvestigationResult(id: String, req: AddInvestigationResultRequest): Result<InvestigationOrder> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.addInvestigationResult(id = id, req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't save the result — try again once connected"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Offline — try again once connected"))
+        }
+    }
+
+    suspend fun listTimeline(admissionId: String): Result<List<IpdTimelineEvent>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdTimeline(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load timeline"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun listDischargeChecklist(admissionId: String): Result<List<IpdDischargeChecklistItem>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listDischargeChecklist(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception("Failed to load the discharge checklist"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Online-only — same reasoning as updateInvestigationStatus: infrequent,
+    // deliberate ticks, not a high-volume write worth an offline outbox.
+    suspend fun updateDischargeChecklistItem(id: String, completed: Boolean): Result<IpdDischargeChecklistItem> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateDischargeChecklistItem(id = id, req = UpdateChecklistItemRequest(completed), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) Result.success(res.body()!!)
+            else Result.failure(Exception(res.errorBody()?.string() ?: "Couldn't update — try again once connected"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Offline — try again once connected"))
         }
     }
 }

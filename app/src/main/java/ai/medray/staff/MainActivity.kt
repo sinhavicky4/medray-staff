@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         val clinicSignupRepo = ClinicSignupRepository(this)
         val staffManagementRepo = StaffManagementRepository(this)
         val placesRepository = PlacesAutocompleteRepository(this)
+        val ipdRepo = IpdRepository(this)
 
         setContent {
             MedRayStaffTheme {
@@ -47,7 +48,8 @@ class MainActivity : ComponentActivity() {
                         chatRepo = chatRepo,
                         clinicSignupRepo = clinicSignupRepo,
                         staffManagementRepo = staffManagementRepo,
-                        placesRepository = placesRepository
+                        placesRepository = placesRepository,
+                        ipdRepo = ipdRepo
                     )
                 }
             }

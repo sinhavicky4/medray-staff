@@ -133,4 +133,24 @@ object VitalsValidator {
             overallSeverity = maxSev
         )
     }
+
+    /**
+     * IPD vitals overload — IpdVitalsReading's field set differs from OPD's
+     * Vitals (adds bloodGlucose/painScore/intakeMl/outputMl, no height), so
+     * it can't share evaluate(Vitals) directly. Shares the same 4 checks
+     * (BP/temp/pulse/SpO2) verbatim rather than duplicating the thresholds;
+     * blood glucose/pain score are intentionally left unvalidated for now
+     * (no established clinical threshold agreed for this app yet) rather
+     * than guessing at ones no one has reviewed.
+     */
+    fun evaluate(bloodPressure: String?, temperatureF: Double?, pulseBpm: Int?, spo2Percent: Int?): VitalsEvaluation {
+        return evaluate(
+            Vitals(
+                vitalsBp = bloodPressure,
+                vitalsTemperatureF = temperatureF,
+                vitalsPulseBpm = pulseBpm,
+                vitalsSpo2 = spo2Percent
+            )
+        )
+    }
 }
