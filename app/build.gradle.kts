@@ -40,7 +40,7 @@ val prodApiBaseUrl = "https://p0p0mmh46m.execute-api.ap-south-1.amazonaws.com/ap
 
 val versionFile = rootProject.file("VERSION")
 val appVersionName: String = if (versionFile.exists()) versionFile.readText().trim() else "0.1"
-val appVersionCode: Int = 18
+val appVersionCode: Int = 19
 
 android {
     namespace = "ai.medray.staff"

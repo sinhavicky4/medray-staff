@@ -224,6 +224,37 @@ data class DoctorAssignmentSummary(
     val isActive: Boolean
 )
 
+data class IpdBed(
+    val id: String,
+    val label: String,
+    val status: String,
+    val dailyRate: Double? = null,
+    val room: RoomSummary
+)
+
+data class CreateIpdAdmissionRequest(
+    val patientId: String,
+    val source: String = "OPD",
+    val type: String = "ELECTIVE",
+    val admittingDoctorId: String,
+    val attendingDoctorId: String,
+    val reasonForAdmission: String,
+    val provisionalDiagnosis: String,
+    val expectedLengthOfStayDays: Int? = null,
+    val attendantName: String? = null,
+    val attendantPhone: String? = null,
+    val paymentType: String = "SELF_PAY"
+)
+
+data class ConfirmAdmissionRequest(
+    val bedId: String? = null
+)
+
+data class ConfirmAdmissionResponse(
+    val admission: IpdAdmission? = null,
+    val bedAssignment: BedAssignmentSummary? = null
+)
+
 // GET /api/ipd/admissions and GET /api/ipd/admissions/:id share this shape —
 // the list endpoint omits some fields the detail endpoint includes (e.g.
 // insurance/referral detail), all left nullable here rather than split into
@@ -667,11 +698,8 @@ interface StaffApiService {
     @DELETE("patients/documents/{documentId}")
     suspend fun deleteDocument(@Path("documentId") documentId: String): Response<Unit>
 
-    // IPD (Inpatient Department) — Phase 3 staff app. Nurse-scoped: see
-    // §30's Web/Staff/Doctor role mapping (STAFF APP = Nurse) — no admission-
-    // create/approve/bed-reserve, medication/investigation-order, discharge-
-    // summary-authoring, or billing endpoints here, those are the web
-    // portal's and doctor app's respective surfaces.
+    // IPD (Inpatient Department) — Staff app admission intake (Clinic Admin & Receptionist)
+    // and Nurse bedside workflows.
     @GET("ipd/admissions")
     suspend fun listIpdAdmissions(
         @Query("status") status: AdmissionStatus? = null,
@@ -685,6 +713,32 @@ interface StaffApiService {
         @Path("id") id: String,
         @Query("clinicId") clinicId: String? = null
     ): Response<IpdAdmission>
+
+    @POST("ipd/admissions")
+    suspend fun createIpdAdmission(
+        @Body req: CreateIpdAdmissionRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdAdmission>
+
+    @POST("ipd/admissions/{id}/approve")
+    suspend fun approveIpdAdmission(
+        @Path("id") id: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdAdmission>
+
+    @POST("ipd/admissions/{id}/confirm")
+    suspend fun confirmIpdAdmission(
+        @Path("id") id: String,
+        @Body req: ConfirmAdmissionRequest = ConfirmAdmissionRequest(),
+        @Query("clinicId") clinicId: String? = null
+    ): Response<ConfirmAdmissionResponse>
+
+    @GET("ipd/beds")
+    suspend fun listIpdBeds(
+        @Query("status") status: String? = null,
+        @Query("wardId") wardId: String? = null,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<List<IpdBed>>
 
     @GET("ipd/nursing/vitals")
     suspend fun listIpdVitals(

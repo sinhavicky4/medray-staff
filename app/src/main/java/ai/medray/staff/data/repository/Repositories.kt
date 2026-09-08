@@ -1299,4 +1299,86 @@ class IpdRepository(private val context: Context) {
             Result.failure(Exception("Offline — try again once connected"))
         }
     }
+
+    suspend fun listAvailableBeds(): Result<List<IpdBed>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdBeds(status = "AVAILABLE", clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to load available beds"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createAdmission(req: CreateIpdAdmissionRequest): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.createIpdAdmission(req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to create admission"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun approveAdmission(admissionId: String): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.approveIpdAdmission(id = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to approve admission"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun confirmAdmission(admissionId: String, bedId: String? = null): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.confirmIpdAdmission(id = admissionId, req = ConfirmAdmissionRequest(bedId = bedId), clinicId = clinicId)
+            if (res.isSuccessful && res.body()?.admission != null) {
+                Result.success(res.body()!!.admission!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to confirm admission"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Fast-track admission: creates admission, approves it, and confirms it into INPATIENT
+     * with bed allocation in a single orchestrated flow.
+     */
+    suspend fun admitPatientFastTrack(req: CreateIpdAdmissionRequest, bedId: String? = null): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val createRes = createAdmission(req)
+        if (createRes.isFailure) return@withContext createRes
+        val created = createRes.getOrThrow()
+
+        // If no bed selected, leave as ADMISSION_REQUESTED
+        if (bedId.isNullOrBlank()) {
+            return@withContext Result.success(created)
+        }
+
+        // Approve
+        val approveRes = approveAdmission(created.id)
+        if (approveRes.isFailure) return@withContext approveRes
+
+        // Confirm into active inpatient with bed
+        val confirmRes = confirmAdmission(created.id, bedId)
+        if (confirmRes.isFailure) return@withContext confirmRes
+
+        // Re-fetch full admission with bed assignment
+        getAdmission(created.id)
+    }
 }

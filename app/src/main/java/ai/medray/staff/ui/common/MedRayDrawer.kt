@@ -49,6 +49,10 @@ fun MedRayDrawerContent(
     ipdFeatureEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // IPD — visible when Clinic.ipdEnabled is active, accessible to Nurses,
+    // Receptionists, and Clinic Admins (who can admit patients directly from mobile).
+    val canAccessIpd = (user?.isNurse == true || user?.isReceptionist == true || user?.isClinicAdmin == true) && ipdFeatureEnabled
+
     val items = listOfNotNull(
         DrawerMenuItem(
             route = "queue",
@@ -64,14 +68,7 @@ fun MedRayDrawerContent(
                 unselectedIcon = Icons.Outlined.Badge
             )
         } else null,
-        // IPD Phase 3 — Nurse-only (spec §30: STAFF APP = Nurse), and now
-        // also gated on Clinic.ipdEnabled (the module's master switch,
-        // off by default and Super-Admin-only-settable). Gated the same
-        // way as the two flags above rather than shown to everyone; route
-        // string kept in sync with Screen.IpdWard.route by hand
-        // (StaffNavGraph.Screen isn't imported into this file — pre-existing
-        // pattern every other route literal here already follows).
-        if (user?.isNurse == true && ipdFeatureEnabled) {
+        if (canAccessIpd) {
             DrawerMenuItem(
                 route = "ipd_ward",
                 title = "IPD Ward",
