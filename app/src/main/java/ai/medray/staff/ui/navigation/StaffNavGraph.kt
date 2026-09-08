@@ -789,6 +789,10 @@ fun StaffAppNavHost(
         Screen.Profile.route -> "Staff Profile"
         Screen.Chat.route -> "Chat Assistant"
         Screen.StaffManagement.route -> "Staff Management"
+        Screen.IpdWard.route -> "Inpatient Ward"
+        Screen.IpdPatientList.route -> "Ward Patients"
+        Screen.IpdPatientChart.route -> "Patient Chart"
+        Screen.IpdTaskList.route -> "Ward Tasks"
         else -> BrandConfig.APP_NAME
     }
     val screenSubtitle = if (currentRoute == Screen.Chat.route) chatAssistantName else (currentUser?.clinic?.name ?: "Main Clinic")
@@ -1310,8 +1314,21 @@ fun StaffAppNavHost(
                         IpdPatientChartScreen(
                             chart = ipdChart,
                             error = ipdChartError,
+                            doctors = doctors,
                             onBack = { navController.popBackStack() },
                             onRefresh = { coroutineScope.launch { loadIpdChartData(admissionId) } },
+                            onAssignDoctor = { docId, reason ->
+                                coroutineScope.launch {
+                                    val res = ipdRepo.assignDoctor(admissionId, docId, reason)
+                                    if (res.isFailure) {
+                                        Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to reassign doctor", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Doctor reassigned", Toast.LENGTH_SHORT).show()
+                                    }
+                                    loadIpdChartData(admissionId)
+                                    refreshIpdWard()
+                                }
+                            },
                             onRecordVitals = { req ->
                                 coroutineScope.launch {
                                     val res = ipdRepo.recordVitals(req)

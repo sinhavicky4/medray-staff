@@ -1,6 +1,8 @@
 package ai.medray.staff.ui.ipd
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ai.medray.staff.data.model.DoctorSummary
 import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.data.network.*
 import ai.medray.staff.ui.common.QuickFilterPill
@@ -61,6 +64,7 @@ private fun lengthOfStayDays(admission: IpdAdmission): Long {
 fun IpdPatientChartScreen(
     chart: IpdChartData,
     error: String?,
+    doctors: List<DoctorSummary> = emptyList(),
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onRecordVitals: (CreateIpdVitalsRequest) -> Unit,
@@ -70,6 +74,7 @@ fun IpdPatientChartScreen(
     onUpdateInvestigationStatus: (String, InvestigationOrderStatus) -> Unit,
     onAddInvestigationResult: (String, AddInvestigationResultRequest) -> Unit,
     onToggleChecklistItem: (String, Boolean) -> Unit,
+    onAssignDoctor: ((doctorId: String, reason: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -192,7 +197,7 @@ fun IpdPatientChartScreen(
 
             Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
                 when (section) {
-                    ChartSection.OVERVIEW -> OverviewPanel(admission)
+                    ChartSection.OVERVIEW -> OverviewPanel(admission, doctors = doctors, onAssignDoctor = onAssignDoctor)
                     ChartSection.VITALS -> VitalsPanel(chart.vitals, onRecordClick = { showVitalsDialog = true })
                     ChartSection.NURSING -> NursingPanel(chart.notes, onAddClick = { showNoteDialog = true })
                     ChartSection.PROGRESS_NOTES -> ProgressNotesPanel(chart.progressNotes)
@@ -327,7 +332,13 @@ private fun DischargeChecklistCard(items: List<IpdDischargeChecklistItem>, onTog
 }
 
 @Composable
-private fun OverviewPanel(admission: IpdAdmission) {
+private fun OverviewPanel(
+    admission: IpdAdmission,
+    doctors: List<DoctorSummary> = emptyList(),
+    onAssignDoctor: ((doctorId: String, reason: String?) -> Unit)? = null,
+) {
+    var showReassignDialog by remember { mutableStateOf(false) }
+
     SectionCard {
         Text("Admission Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Slate900)
         Spacer(modifier = Modifier.height(10.dp))
@@ -336,7 +347,132 @@ private fun OverviewPanel(admission: IpdAdmission) {
         Spacer(modifier = Modifier.height(10.dp))
         Text("Provisional Diagnosis", style = MaterialTheme.typography.labelSmall, color = Slate500)
         Text(admission.provisionalDiagnosis, style = MaterialTheme.typography.bodyMedium, color = Slate800)
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Text("Care Team", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Slate900)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (admission.admittingDoctor != null || admission.admittingDoctorId.isNotBlank()) {
+            Text("Admitting Doctor", style = MaterialTheme.typography.labelSmall, color = Slate500)
+            Text(
+                "Dr. ${admission.admittingDoctor?.fullName ?: admission.admittingDoctorId}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Slate800
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        Text("Current Attending Doctor", style = MaterialTheme.typography.labelSmall, color = Slate500)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                "Dr. ${admission.attendingDoctor?.fullName ?: admission.attendingDoctorId.ifBlank { "Unassigned" }}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Slate800
+            )
+            if (onAssignDoctor != null && doctors.isNotEmpty()) {
+                TextButton(onClick = { showReassignDialog = true }) {
+                    Text("Change Doctor", style = MaterialTheme.typography.labelMedium, color = MedRayBluePrimary)
+                }
+            }
+        }
     }
+
+    if (showReassignDialog && onAssignDoctor != null) {
+        ReassignDoctorDialog(
+            currentDoctorId = admission.attendingDoctorId,
+            doctors = doctors,
+            onDismiss = { showReassignDialog = false },
+            onConfirm = { newDocId, reason ->
+                onAssignDoctor(newDocId, reason)
+                showReassignDialog = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReassignDoctorDialog(
+    currentDoctorId: String?,
+    doctors: List<DoctorSummary>,
+    onDismiss: () -> Unit,
+    onConfirm: (doctorId: String, reason: String?) -> Unit,
+) {
+    var selectedDoctor by remember { mutableStateOf(doctors.firstOrNull { it.id != currentDoctorId } ?: doctors.firstOrNull()) }
+    var reason by remember { mutableStateOf("Shift Rotation / Ward Coverage") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reassign Attending Doctor", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Select oncoming doctor for this inpatient stay:", style = MaterialTheme.typography.bodySmall, color = Slate600)
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    doctors.forEach { doc ->
+                        val isSelected = selectedDoctor?.id == doc.id
+                        val isCurrent = doc.id == currentDoctorId
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MedRayBlueLight else Slate50,
+                            border = BorderStroke(1.dp, if (isSelected) MedRayBluePrimary else Slate200),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedDoctor = doc }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        "Dr. ${doc.fullName}" + if (isCurrent) " (Current)" else "",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrent) Slate500 else Slate900
+                                    )
+                                    if (!doc.specialization.isNullOrBlank()) {
+                                        Text(doc.specialization, style = MaterialTheme.typography.labelSmall, color = Slate500)
+                                    }
+                                }
+                                if (isSelected) {
+                                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = MedRayBluePrimary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Reason / Shift Note") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    selectedDoctor?.let { onConfirm(it.id, reason.ifBlank { null }) }
+                },
+                enabled = selectedDoctor != null && selectedDoctor?.id != currentDoctorId,
+                colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary)
+            ) {
+                Text("Reassign")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

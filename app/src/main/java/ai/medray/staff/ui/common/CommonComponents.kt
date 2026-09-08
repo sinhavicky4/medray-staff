@@ -72,46 +72,71 @@ fun MedRayTopBar(
                     }
                 },
                 title = {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate900
-                            )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (!subtitle.isNullOrBlank()) {
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Slate500,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                            }
                             if (user != null) {
+                                if (!subtitle.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "•",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Slate400
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
                                 val roleLabel = when {
+                                    user.isClinicAdmin -> "ADMIN"
                                     user.isNurse -> "NURSE"
                                     user.isReceptionist -> "RECEPTION"
                                     else -> "STAFF"
                                 }
-                                val roleBg = if (user.isNurse) MedRayTealContainer else MedRayBlueContainer
-                                val roleColor = if (user.isNurse) MedRayTealDark else MedRayBlueDark
+                                val roleBg = when {
+                                    user.isClinicAdmin -> Color(0xFFFEF3C7)
+                                    user.isNurse -> MedRayTealContainer
+                                    user.isReceptionist -> MedRayBlueContainer
+                                    else -> Slate100
+                                }
+                                val roleColor = when {
+                                    user.isClinicAdmin -> Color(0xFF92400E)
+                                    user.isNurse -> MedRayTealDark
+                                    user.isReceptionist -> MedRayBlueDark
+                                    else -> Slate600
+                                }
 
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
                                     color = roleBg,
-                                    shape = RoundedCornerShape(4.dp),
-                                    modifier = Modifier.padding(vertical = 2.dp)
+                                    shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
                                         text = roleLabel,
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
                                         color = roleColor,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                     )
                                 }
                             }
-                        }
-                        if (!subtitle.isNullOrBlank()) {
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Slate500,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
                 },

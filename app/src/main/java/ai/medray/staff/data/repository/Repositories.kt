@@ -1381,4 +1381,18 @@ class IpdRepository(private val context: Context) {
         // Re-fetch full admission with bed assignment
         getAdmission(created.id)
     }
+
+    suspend fun assignDoctor(admissionId: String, doctorId: String, reason: String? = null): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.assignDoctor(AssignDoctorRequest(admissionId = admissionId, doctorId = doctorId, role = "ATTENDING", reason = reason), clinicId = clinicId)
+            if (res.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to reassign doctor"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

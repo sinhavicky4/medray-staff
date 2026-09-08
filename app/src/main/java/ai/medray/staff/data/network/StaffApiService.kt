@@ -271,6 +271,7 @@ data class IpdAdmission(
     val admittingDoctorId: String,
     val attendingDoctorId: String,
     val attendingDoctor: DoctorSummary? = null,
+    val admittingDoctor: DoctorSummary? = null,
     val reasonForAdmission: String,
     val provisionalDiagnosis: String,
     // Spec §29's doctor-set vitals frequency (null = no order set yet;
@@ -443,6 +444,13 @@ data class CreateMedicationAdministrationRequest(
     val scheduledAt: String,
     val dose: String,
     val route: String
+)
+
+data class AssignDoctorRequest(
+    val admissionId: String,
+    val doctorId: String,
+    val role: String = "ATTENDING",
+    val reason: String? = null,
 )
 
 interface StaffApiService {
@@ -732,6 +740,12 @@ interface StaffApiService {
         @Body req: ConfirmAdmissionRequest = ConfirmAdmissionRequest(),
         @Query("clinicId") clinicId: String? = null
     ): Response<ConfirmAdmissionResponse>
+
+    @POST("ipd/assignments/doctor")
+    suspend fun assignDoctor(
+        @Body req: AssignDoctorRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<Unit>
 
     @GET("ipd/beds")
     suspend fun listIpdBeds(
