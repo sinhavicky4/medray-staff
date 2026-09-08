@@ -192,6 +192,7 @@ fun IpdWardHomeScreen(
     onPatientsClick: () -> Unit,
     onTaskListClick: () -> Unit,
     onPatientClick: (IpdAdmission) -> Unit,
+    onNewAdmissionClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val counts = remember(admissions, tasks) { IpdTaskListDerivation.tileCounts(admissions.size, tasks) }
@@ -207,15 +208,33 @@ fun IpdWardHomeScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                Column {
-                    Text(
-                        text = "My Ward",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Slate900
-                    )
-                    userName?.let {
-                        Text("Welcome back, ${it.trim().split(" ").firstOrNull() ?: it}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "My Ward",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                        userName?.let {
+                            Text("Welcome back, ${it.trim().split(" ").firstOrNull() ?: it}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                        }
+                    }
+                    if (onNewAdmissionClick != null) {
+                        Button(
+                            onClick = onNewAdmissionClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Admit", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PureWhite)
+                        }
                     }
                 }
             }
@@ -331,6 +350,7 @@ fun IpdPatientListScreen(
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onPatientClick: (IpdAdmission) -> Unit,
+    onNewAdmissionClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val filtered = remember(admissions, searchQuery) {
@@ -351,7 +371,25 @@ fun IpdPatientListScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                Text("Inpatients", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Slate900)
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Inpatients", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Slate900)
+                    if (onNewAdmissionClick != null) {
+                        Button(
+                            onClick = onNewAdmissionClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Admit", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PureWhite)
+                        }
+                    }
+                }
             }
             if (errorMessage != null) {
                 item { ErrorBanner(errorMessage) }

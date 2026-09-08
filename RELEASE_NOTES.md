@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.5.3 Release Notes
+
+- **🏥 Mobile IPD Patient Admission Intake (Clinic Admin & Receptionist)**: Added the ability for Clinic Admin and Receptionist staff to admit patients directly from the mobile app. Supports searching existing patients (by name/UHID) or quick-registering new walk-ins, assigning admitting and attending doctors, clinical reason and provisional diagnosis, live bed allocation with fast-track inpatient confirmation, and attendant details.
+- **🚪 Role-Based IPD Ward Access**: Enabled IPD Ward drawer access for Clinic Admin and Receptionist roles when IPD is active for the clinic, with admission actions restricted to authorized intake roles.
+
 # MedRay Staff Version 0.5.2 Release Notes
 
 - **📄 Patient Document & Lab Report Upload (Web & Camera Support)**: Upload and attach diagnostic lab reports, referral letters, and scanned prescriptions directly from the mobile app. Supports both device file browsing (PDF, PNG, JPEG, WebP) and high-resolution camera document scanning with automatic JPEG downsampling. Accessible via "Scan Lab" in Nurse Triage and the new "Documents" tab in Patient Details with in-app view and delete capabilities.

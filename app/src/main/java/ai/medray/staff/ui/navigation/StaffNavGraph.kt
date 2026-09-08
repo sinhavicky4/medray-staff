@@ -482,6 +482,22 @@ fun StaffAppNavHost(
     var ipdOutboxStatus by remember { mutableStateOf(IpdOutboxSyncStatus(pendingCount = 0, failedCount = 0)) }
     val ipdPendingTaskCount = ipdTasks.size
     var ipdWardSearchQuery by remember { mutableStateOf("") }
+    var showTakeAdmissionDialog by remember { mutableStateOf(false) }
+    var ipdAvailableBeds by remember { mutableStateOf<List<IpdBed>>(emptyList()) }
+    var ipdAdmissionBusy by remember { mutableStateOf(false) }
+    var ipdAdmissionError by remember { mutableStateOf<String?>(null) }
+    val canCreateIpdAdmission = remember(currentUser) {
+        currentUser?.isClinicAdmin == true ||
+        currentUser?.roles?.contains(UserRole.RECEPTIONIST) == true ||
+        (currentUser?.isReceptionist == true && currentUser?.isNurse != true)
+    }
+
+    suspend fun loadAvailableBeds() {
+        val res = ipdRepo.listAvailableBeds()
+        if (res.isSuccess) {
+            ipdAvailableBeds = res.getOrDefault(emptyList())
+        }
+    }
 
     // Patient Chart's own tab data, hoisted like every other screen's data
     // in this file (no screen in this app fetches its own data — see
@@ -652,7 +668,8 @@ fun StaffAppNavHost(
                 val sRes = selfCheckInRepo.listPending()
                 if (sRes.isSuccess) selfCheckInsList = sRes.getOrDefault(emptyList())
 
-                if (currentUser?.isNurse == true) refreshIpdWard()
+                val canAccessIpd = (currentUser?.isNurse == true || currentUser?.isReceptionist == true || currentUser?.isClinicAdmin == true) && currentUser?.clinic?.ipdEnabled == true
+                if (canAccessIpd) refreshIpdWard()
             } finally {
                 isRefreshing = false
             }
@@ -1215,7 +1232,7 @@ fun StaffAppNavHost(
                     )
                 }
 
-                // IPD (Phase 3, Nurse-scoped) — Ward Home
+                // IPD — Ward Home
                 composable(Screen.IpdWard.route) {
                     IpdWardHomeScreen(
                         userName = currentUser?.fullName,
@@ -1230,7 +1247,14 @@ fun StaffAppNavHost(
                         onPatientClick = { admission ->
                             ipdChartTargetAdmissionId = admission.id
                             navController.navigate(Screen.IpdPatientChart.route)
-                        }
+                        },
+                        onNewAdmissionClick = if (canCreateIpdAdmission) {
+                            {
+                                ipdAdmissionError = null
+                                showTakeAdmissionDialog = true
+                                coroutineScope.launch { loadAvailableBeds() }
+                            }
+                        } else null
                     )
                 }
 
@@ -1247,7 +1271,14 @@ fun StaffAppNavHost(
                         onPatientClick = { admission ->
                             ipdChartTargetAdmissionId = admission.id
                             navController.navigate(Screen.IpdPatientChart.route)
-                        }
+                        },
+                        onNewAdmissionClick = if (canCreateIpdAdmission) {
+                            {
+                                ipdAdmissionError = null
+                                showTakeAdmissionDialog = true
+                                coroutineScope.launch { loadAvailableBeds() }
+                            }
+                        } else null
                     )
                 }
 
@@ -2062,4 +2093,74 @@ fun StaffAppNavHost(
             }
         )
     }
+
+    // Take IPD Admission dialog (Clinic Admin, Receptionist)
+    if (showTakeAdmissionDialog) {
+        TakeAdmissionDialog(
+            doctors = doctors,
+            availableBeds = ipdAvailableBeds,
+            existingPatients = patientsList,
+            isSubmitting = ipdAdmissionBusy,
+            errorMessage = ipdAdmissionError,
+            onDismiss = {
+                showTakeAdmissionDialog = false
+                ipdAdmissionError = null
+            },
+            onAdmit = { patientId: String?, newPatientReq: RegisterPatientRequest?, admittingDoctorId: String, attendingDoctorId: String, reason: String, diagnosis: String, source: String, type: String, bedId: String?, attendantName: String?, attendantPhone: String?, paymentType: String ->
+                coroutineScope.launch {
+                    ipdAdmissionBusy = true
+                    ipdAdmissionError = null
+                    try {
+                        var resolvedPatientId = patientId
+                        if (resolvedPatientId == null && newPatientReq != null) {
+                            val rawPhone = newPatientReq.phone ?: ""
+                            val formattedPhone = if (rawPhone.startsWith("+91")) rawPhone else "+91$rawPhone"
+                            val pRes = patientRepo.registerPatient(newPatientReq.copy(phone = formattedPhone))
+                            resolvedPatientId = pRes.getOrNull()?.id
+                            if (resolvedPatientId == null && rawPhone.isNotBlank()) {
+                                val searchRes = patientRepo.searchPatients(rawPhone)
+                                resolvedPatientId = searchRes.getOrNull()?.firstOrNull()?.id
+                            }
+                        }
+
+                        if (resolvedPatientId == null) {
+                            ipdAdmissionError = "Could not register or locate patient. Please check phone number."
+                            return@launch
+                        }
+
+                        val createReq = CreateIpdAdmissionRequest(
+                            patientId = resolvedPatientId,
+                            source = source,
+                            type = type,
+                            admittingDoctorId = admittingDoctorId,
+                            attendingDoctorId = attendingDoctorId,
+                            reasonForAdmission = reason,
+                            provisionalDiagnosis = diagnosis,
+                            attendantName = attendantName,
+                            attendantPhone = attendantPhone,
+                            paymentType = paymentType
+                        )
+
+                        val admitRes = ipdRepo.admitPatientFastTrack(
+                            req = createReq,
+                            bedId = bedId
+                        )
+
+                        if (admitRes.isSuccess) {
+                            showTakeAdmissionDialog = false
+                            Toast.makeText(context, "Patient admitted successfully", Toast.LENGTH_SHORT).show()
+                            refreshIpdWard()
+                        } else {
+                            ipdAdmissionError = admitRes.exceptionOrNull()?.message ?: "Failed to admit patient"
+                        }
+                    } catch (e: Exception) {
+                        ipdAdmissionError = e.message ?: "An unexpected error occurred"
+                    } finally {
+                        ipdAdmissionBusy = false
+                    }
+                }
+            }
+        )
+    }
 }
+
