@@ -1261,11 +1261,14 @@ fun MedRayPullRefreshBox(
         modifier = modifier.nestedScroll(state.nestedScrollConnection)
     ) {
         content()
-        androidx.compose.material3.pulltorefresh.PullToRefreshContainer(
-            state = state,
-            modifier = Modifier.align(Alignment.TopCenter),
-            containerColor = PureWhite,
-            contentColor = MedRayBluePrimary
-        )
+        if (state.verticalOffset > 0f || state.isRefreshing || isRefreshing) {
+            androidx.compose.material3.pulltorefresh.PullToRefreshContainer(
+                state = state,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = PureWhite,
+                contentColor = MedRayBluePrimary
+            )
+        }
     }
 }
+

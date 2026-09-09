@@ -9,11 +9,18 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
 
+private val APP_DEFAULT_ZONE: ZoneId =
+    if (ZoneId.systemDefault().id in setOf("UTC", "GMT", "Etc/UTC", "Z")) {
+        ZoneId.of("Asia/Kolkata")
+    } else {
+        ZoneId.systemDefault()
+    }
+
 private val ISO_TIME_LOCAL_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+    DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).withZone(APP_DEFAULT_ZONE)
 
 private val ISO_DATE_TIME_LOCAL_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+    DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH).withZone(APP_DEFAULT_ZONE)
 
 /** Same conversion as [formatIsoTimeLocal], but including the date — for a payments ledger. */
 fun formatIsoDateTimeLocal(iso: String?): String {
