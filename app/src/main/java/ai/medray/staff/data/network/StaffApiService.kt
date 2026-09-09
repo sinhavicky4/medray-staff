@@ -453,6 +453,19 @@ data class AssignDoctorRequest(
     val reason: String? = null,
 )
 
+data class BedTransferRequest(
+    val admissionId: String,
+    val toBedId: String,
+    val reason: String? = null
+)
+
+data class BedTransferResponse(
+    val id: String? = null,
+    val admissionId: String? = null,
+    val bedId: String? = null
+)
+
+
 interface StaffApiService {
 
     // Auth
@@ -852,6 +865,18 @@ interface StaffApiService {
         @Query("cursor") cursor: String? = null,
         @Query("clinicId") clinicId: String? = null
     ): Response<List<IpdTimelineEvent>>
+
+    @POST("ipd/assignments/bed-transfer")
+    suspend fun transferBed(
+        @Body req: BedTransferRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<BedTransferResponse>
+
+    @POST("ipd/discharge/{admissionId}/initiate")
+    suspend fun initiateDischarge(
+        @Path("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<IpdAdmission>
 
     // Chat Assistant — mirrors web's api.chat.* (web/src/lib/api.ts). Gated
     // server-side to SUPER_ADMIN/CLINIC_ADMIN/RECEPTIONIST/NURSE, same roles

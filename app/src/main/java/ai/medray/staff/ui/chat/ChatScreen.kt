@@ -32,14 +32,23 @@ private val ACTION_LABELS = mapOf(
     "propose_create_patient" to "Register new patient",
     "propose_register_queue_entry" to "Add to today's queue",
     "propose_record_vitals" to "Update vitals",
-    "propose_book_appointment" to "Book appointment"
+    "propose_book_appointment" to "Book appointment",
+    "propose_admit_patient" to "Admit patient to ward",
+    "propose_transfer_bed" to "Transfer bed",
+    "propose_record_ipd_vitals" to "Record inpatient vitals",
+    "propose_add_nursing_note" to "Add nursing note",
+    "propose_handover_doctor" to "Handover attending doctor",
+    "propose_initiate_discharge" to "Initiate patient discharge"
 )
 
 private val SUGGESTED_PROMPTS = listOf(
     "Register a new patient",
     "Add someone to today's queue",
-    "Book an appointment"
+    "Book an appointment",
+    "Check IPD bed availability",
+    "Record inpatient vitals"
 )
+
 
 /**
  * Full-screen AI chat assistant — mirrors the web app's /chat page

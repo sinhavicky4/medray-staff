@@ -1395,4 +1395,33 @@ class IpdRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun transferBed(admissionId: String, toBedId: String, reason: String? = null): Result<Unit> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.transferBed(BedTransferRequest(admissionId = admissionId, toBedId = toBedId, reason = reason), clinicId = clinicId)
+            if (res.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to transfer bed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun initiateDischarge(admissionId: String): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.initiateDischarge(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to initiate discharge"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+

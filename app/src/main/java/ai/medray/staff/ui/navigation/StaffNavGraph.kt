@@ -760,6 +760,64 @@ fun StaffAppNavHost(
                         )
                         res.map { "✅ Appointment booked for ${it.patient.fullName}." }
                     }
+                    "propose_admit_patient" -> {
+                        val patientId = i["patientId"] as? String ?: ""
+                        val bedId = i["bedId"] as? String
+                        val admittingDoctorId = i["admittingDoctorId"] as? String ?: ""
+                        val attendingDoctorId = (i["attendingDoctorId"] as? String)?.ifBlank { null } ?: admittingDoctorId
+                        val reasonForAdmission = i["reasonForAdmission"] as? String ?: "Inpatient Admission"
+                        val provisionalDiagnosis = i["provisionalDiagnosis"] as? String ?: ""
+                        val req = CreateIpdAdmissionRequest(
+                            patientId = patientId,
+                            admittingDoctorId = admittingDoctorId,
+                            attendingDoctorId = attendingDoctorId,
+                            reasonForAdmission = reasonForAdmission,
+                            provisionalDiagnosis = provisionalDiagnosis
+                        )
+                        val res = ipdRepo.admitPatientFastTrack(req, bedId)
+                        res.map { "✅ Patient admitted to IPD (Admission #${it.admissionNumber})." }
+                    }
+                    "propose_transfer_bed" -> {
+                        val admissionId = i["admissionId"] as? String ?: ""
+                        val toBedId = i["toBedId"] as? String ?: ""
+                        val reason = i["reason"] as? String
+                        val res = ipdRepo.transferBed(admissionId = admissionId, toBedId = toBedId, reason = reason)
+                        res.map { "✅ Bed transfer completed successfully." }
+                    }
+                    "propose_record_ipd_vitals" -> {
+                        val admissionId = i["admissionId"] as? String ?: ""
+                        val req = CreateIpdVitalsRequest(
+                            admissionId = admissionId,
+                            temperatureF = (i["temperatureF"] as? Number)?.toDouble(),
+                            bloodPressure = i["bloodPressure"] as? String,
+                            pulseBpm = (i["pulseBpm"] as? Number)?.toInt(),
+                            respRatePerMin = (i["respRatePerMin"] as? Number)?.toInt(),
+                            spo2Percent = (i["spo2Percent"] as? Number)?.toInt(),
+                            bloodGlucose = (i["bloodGlucose"] as? Number)?.toDouble(),
+                            painScore = (i["painScore"] as? Number)?.toInt()
+                        )
+                        val res = ipdRepo.recordVitals(req)
+                        res.map { "✅ Inpatient vitals recorded." }
+                    }
+                    "propose_add_nursing_note" -> {
+                        val admissionId = i["admissionId"] as? String ?: ""
+                        val note = i["note"] as? String ?: ""
+                        val req = CreateNursingNoteRequest(admissionId = admissionId, note = note)
+                        val res = ipdRepo.addNursingNote(req)
+                        res.map { "✅ Nursing note added." }
+                    }
+                    "propose_handover_doctor" -> {
+                        val admissionId = i["admissionId"] as? String ?: ""
+                        val doctorId = i["doctorId"] as? String ?: ""
+                        val reason = i["reason"] as? String
+                        val res = ipdRepo.assignDoctor(admissionId = admissionId, doctorId = doctorId, reason = reason)
+                        res.map { "✅ Attending doctor handover completed." }
+                    }
+                    "propose_initiate_discharge" -> {
+                        val admissionId = i["admissionId"] as? String ?: ""
+                        val res = ipdRepo.initiateDischarge(admissionId)
+                        res.map { "✅ Patient discharge initiated (Admission #${it.admissionNumber}). Checklist generated." }
+                    }
                     else -> Result.failure(Exception("Unknown action"))
                 }
             } catch (e: Exception) {
