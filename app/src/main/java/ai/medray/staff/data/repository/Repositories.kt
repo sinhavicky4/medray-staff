@@ -1423,5 +1423,29 @@ class IpdRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun finalizeDischarge(admissionId: String): Result<IpdAdmission> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.finalizeDischarge(admissionId = admissionId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                val updated = res.body()!!.admission
+                if (clinicId != null) {
+                    db.ipdAdmissionDao().insertAdmissions(listOf(IpdAdmissionEntity.fromDomain(updated)))
+                }
+                Result.success(updated)
+            } else {
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Couldn't finalize discharge")
+                } catch (_: Exception) {
+                    err ?: "Couldn't finalize discharge"
+                }
+                Result.failure(Exception(message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 

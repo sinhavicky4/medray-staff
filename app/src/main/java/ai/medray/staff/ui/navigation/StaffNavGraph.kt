@@ -1444,6 +1444,18 @@ fun StaffAppNavHost(
                                     if (res.isFailure) Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't update", Toast.LENGTH_LONG).show()
                                     loadIpdChartData(admissionId)
                                 }
+                            },
+                            onFinalizeDischarge = {
+                                coroutineScope.launch {
+                                    val res = ipdRepo.finalizeDischarge(admissionId)
+                                    if (res.isFailure) {
+                                        Toast.makeText(context, res.exceptionOrNull()?.message ?: "Couldn't finalize discharge", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Discharge finalized — patient discharged", Toast.LENGTH_SHORT).show()
+                                        loadIpdChartData(admissionId)
+                                        refreshIpdWard()
+                                    }
+                                }
                             }
                         )
                     }

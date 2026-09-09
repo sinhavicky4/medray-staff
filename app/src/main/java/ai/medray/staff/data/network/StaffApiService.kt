@@ -405,6 +405,8 @@ data class ChecklistCompletedBy(val id: String, val fullName: String)
 
 data class UpdateChecklistItemRequest(val completed: Boolean, val notes: String? = null)
 
+data class FinalizeDischargeResponse(val admission: IpdAdmission)
+
 data class IpdTimelineEvent(
     val id: String,
     val eventType: String,
@@ -858,6 +860,12 @@ interface StaffApiService {
         @Body req: UpdateChecklistItemRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<IpdDischargeChecklistItem>
+
+    @POST("ipd/discharge/{admissionId}/finalize")
+    suspend fun finalizeDischarge(
+        @Path("admissionId") admissionId: String,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<FinalizeDischargeResponse>
 
     @GET("ipd/timeline")
     suspend fun listIpdTimeline(

@@ -75,6 +75,7 @@ fun IpdPatientChartScreen(
     onAddInvestigationResult: (String, AddInvestigationResultRequest) -> Unit,
     onToggleChecklistItem: (String, Boolean) -> Unit,
     onAssignDoctor: ((doctorId: String, reason: String?) -> Unit)? = null,
+    onFinalizeDischarge: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -166,7 +167,7 @@ fun IpdPatientChartScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-                        DischargeChecklistCard(chart.dischargeChecklist, onToggleChecklistItem)
+                        DischargeChecklistCard(chart.dischargeChecklist, onToggleChecklistItem, onFinalizeDischarge)
                     } else if (admission.dischargedAt != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(color = Slate100, shape = RoundedCornerShape(8.dp)) {
@@ -308,17 +309,42 @@ private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType?): String
  * work.
  */
 @Composable
-private fun DischargeChecklistCard(items: List<IpdDischargeChecklistItem>, onToggle: (String, Boolean) -> Unit) {
+private fun DischargeChecklistCard(
+    items: List<IpdDischargeChecklistItem>,
+    onToggle: (String, Boolean) -> Unit,
+    onFinalize: (() -> Unit)? = null
+) {
     if (items.isEmpty()) return
     val doneCount = items.count { it.completed }
+    val allCompleted = items.isNotEmpty() && doneCount == items.size
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
     Surface(color = PureWhite, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                "Discharge Checklist ($doneCount/${items.size})",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = Slate900
-            )
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Discharge Checklist ($doneCount/${items.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
+                )
+                if (allCompleted) {
+                    Surface(color = StatusSuccessBg, shape = RoundedCornerShape(6.dp)) {
+                        Text(
+                            "Ready to Finalize",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = StatusSuccessText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             items.forEach { item ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Checkbox(checked = item.completed, onCheckedChange = { checked -> onToggle(item.id, checked) })
@@ -329,7 +355,57 @@ private fun DischargeChecklistCard(items: List<IpdDischargeChecklistItem>, onTog
                     )
                 }
             }
+
+            if (onFinalize != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = { showConfirmDialog = true },
+                    enabled = allCompleted,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (allCompleted) StatusErrorText else Slate300,
+                        contentColor = PureWhite,
+                        disabledContainerColor = Slate200,
+                        disabledContentColor = Slate400
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (allCompleted) "Finalize Discharge & Release Bed" else "Complete all ${items.size} items to finalize",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
+    }
+
+    if (showConfirmDialog && onFinalize != null) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Finalize Discharge?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("This officially marks the patient as discharged, releases the bed for cleaning, and completes the inpatient admission.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirmDialog = false
+                        onFinalize()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusErrorText)
+                ) {
+                    Text("Yes, Finalize & Release Bed", color = PureWhite, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
