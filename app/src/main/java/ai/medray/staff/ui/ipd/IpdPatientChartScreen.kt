@@ -287,7 +287,7 @@ private fun EmptyRow(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = Slate400, modifier = Modifier.padding(vertical = 12.dp))
 }
 
-private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType): String = when (itemType) {
+private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType?): String = when (itemType) {
     IpdDischargeChecklistItemType.VITALS_RECORDED -> "Vitals recorded at discharge"
     IpdDischargeChecklistItemType.MEDICATIONS_RECONCILED -> "Discharge medications reconciled"
     IpdDischargeChecklistItemType.BELONGINGS_RETURNED -> "Patient belongings returned"
@@ -295,6 +295,8 @@ private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType): String 
     IpdDischargeChecklistItemType.SUMMARY_HANDED -> "Discharge summary handed to patient"
     IpdDischargeChecklistItemType.BED_CLEARED -> "Bed/room cleared"
     IpdDischargeChecklistItemType.FOLLOWUP_SCHEDULED -> "Follow-up appointment scheduled"
+    IpdDischargeChecklistItemType.BILL_SETTLED -> "Bill settled / billing approved"
+    null -> "Discharge task"
 }
 
 /**

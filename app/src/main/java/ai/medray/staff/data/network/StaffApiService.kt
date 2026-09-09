@@ -389,12 +389,12 @@ data class AddInvestigationResultRequest(
 // the backend already supports it.
 enum class IpdDischargeChecklistItemType {
     VITALS_RECORDED, MEDICATIONS_RECONCILED, BELONGINGS_RETURNED, PATIENT_EDUCATED,
-    SUMMARY_HANDED, BED_CLEARED, FOLLOWUP_SCHEDULED
+    SUMMARY_HANDED, BED_CLEARED, FOLLOWUP_SCHEDULED, BILL_SETTLED
 }
 
 data class IpdDischargeChecklistItem(
     val id: String,
-    val itemType: IpdDischargeChecklistItemType,
+    val itemType: IpdDischargeChecklistItemType? = null,
     val completed: Boolean,
     val completedAt: String? = null,
     val completedBy: ChecklistCompletedBy? = null,
