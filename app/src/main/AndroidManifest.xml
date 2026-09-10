@@ -21,6 +21,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|uiMode"
             android:theme="@style/Theme.MedRay"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

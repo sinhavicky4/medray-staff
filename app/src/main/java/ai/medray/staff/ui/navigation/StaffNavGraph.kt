@@ -388,7 +388,21 @@ fun StaffAppNavHost(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val googleProvider = remember { GoogleIdTokenProvider() }
 
-    var currentUser by remember { mutableStateOf<User?>(null) }
+    var currentUser by remember { mutableStateOf<User?>(AppPreferences.getCachedUser(context)) }
+
+    fun updateCurrentUser(user: User?) {
+        currentUser = user
+        AppPreferences.setCachedUser(context, user)
+    }
+
+    LaunchedEffect(Unit) {
+        if (authRepo.isLoggedIn()) {
+            val res = authRepo.getMe()
+            if (res.isSuccess) {
+                updateCurrentUser(res.getOrNull())
+            }
+        }
+    }
     var phoneInput by remember { mutableStateOf("") }
     var otpInput by remember { mutableStateOf("") }
     var emailInput by remember { mutableStateOf("") }
@@ -451,7 +465,7 @@ fun StaffAppNavHost(
                 val authRes = authRepo.signInWithGoogle(idToken)
                 isGoogleLoading = false
                 if (authRes.isSuccess) {
-                    currentUser = authRes.getOrNull()
+                    updateCurrentUser(authRes.getOrNull())
                     navigateAfterAuth { popUpTo(0) }
                 } else {
                     authError = authRes.exceptionOrNull()?.message ?: "Google sign-in failed on server"
@@ -859,7 +873,7 @@ fun StaffAppNavHost(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
-    val isAppAuthenticated = currentUser != null && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route && currentRoute != Screen.ClinicSignup.route
+    val isAppAuthenticated = (currentUser != null || authRepo.isLoggedIn()) && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route && currentRoute != Screen.Splash.route && currentRoute != Screen.ClinicSignup.route
 
     val screenTitle = when (currentRoute) {
         Screen.Queue.route -> if (currentUser?.isNurse == true) "Triage Queue" else "OPD Queue"
@@ -903,7 +917,7 @@ fun StaffAppNavHost(
                         coroutineScope.launch {
                             drawerState.close()
                             authRepo.logout()
-                            currentUser = null
+                            updateCurrentUser(null)
                             navController.navigate(Screen.Login.route) { popUpTo(0) }
                         }
                     }
@@ -923,7 +937,7 @@ fun StaffAppNavHost(
                         },
                         onLogoutClick = {
                             authRepo.logout()
-                            currentUser = null
+                            updateCurrentUser(null)
                             navController.navigate(Screen.Login.route) { popUpTo(0) }
                         }
                     )
@@ -986,7 +1000,7 @@ fun StaffAppNavHost(
                                 if (authRepo.isLoggedIn()) {
                                     val res = authRepo.getMe()
                                     if (res.isSuccess) {
-                                        currentUser = res.getOrNull()
+                                        updateCurrentUser(res.getOrNull())
                                         navigateAfterAuth { popUpTo(Screen.Splash.route) { inclusive = true } }
                                         return@launch
                                     }
@@ -1029,7 +1043,7 @@ fun StaffAppNavHost(
                                 val res = authRepo.loginWithPassword(emailInput, passwordInput)
                                 isPasswordLoading = false
                                 if (res.isSuccess) {
-                                    currentUser = res.getOrNull()
+                                    updateCurrentUser(res.getOrNull())
                                     navigateAfterAuth { popUpTo(0) }
                                 } else {
                                     authError = res.exceptionOrNull()?.message ?: "Login failed"
@@ -1048,7 +1062,7 @@ fun StaffAppNavHost(
                                     val authRes = authRepo.signInWithGoogle(idToken)
                                     isGoogleLoading = false
                                     if (authRes.isSuccess) {
-                                        currentUser = authRes.getOrNull()
+                                        updateCurrentUser(authRes.getOrNull())
                                         navigateAfterAuth { popUpTo(0) }
                                     } else {
                                         authError = authRes.exceptionOrNull()?.message ?: "Google sign-in failed on server"
@@ -1125,7 +1139,7 @@ fun StaffAppNavHost(
                                 val res = authRepo.verifyOtp(phoneInput, otpInput)
                                 isAuthLoading = false
                                 if (res.isSuccess) {
-                                    currentUser = res.getOrNull()
+                                    updateCurrentUser(res.getOrNull())
                                     navigateAfterAuth { popUpTo(0) }
                                 } else {
                                     authError = res.exceptionOrNull()?.message ?: "Invalid OTP"
@@ -1577,7 +1591,7 @@ fun StaffAppNavHost(
                         user = currentUser,
                         onLogout = {
                             authRepo.logout()
-                            currentUser = null
+                            updateCurrentUser(null)
                             navController.navigate(Screen.Login.route) { popUpTo(0) }
                         }
                     )

@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.5.5 Release Notes
+
+- **📱 Landscape / Horizontal Screen Orientation Support**: Added `orientation|screenSize|screenLayout|smallestScreenSize|density|uiMode` config changes handling to `MainActivity`, cached `currentUser` persistently in `AppPreferences`, and decoupled authentication gatekeeping from transient in-memory state. Resolves navigation chrome (sidebar drawer, top bar, bottom navigation bar) disappearing when the device is rotated horizontally/landscape.
+- **⚡ Production API & Session Resilience**: Retained seamless session restoration and production API stability across configuration changes and device rotations.
+
 # MedRay Staff Version 0.5.4 Release Notes
 
 - **🩺 Ward Chart Stability & Safe Coroutine Execution**: Wrapped IPD ward chart loading in safe coroutine execution (`supervisorScope`, `try/finally`) to ensure loading indicators never get stuck indefinitely. Added thread-safe error tracking and immediate progressive rendering of admission details, bed, and attending physician upon opening.
