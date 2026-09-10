@@ -112,7 +112,7 @@ private fun AdmissionRow(admission: IpdAdmission, onClick: () -> Unit) {
  * rendered by the caller when outboxStatus.hasAnything is true.
  */
 @Composable
-private fun OutboxSyncBanner(status: IpdOutboxSyncStatus) {
+private fun OutboxSyncBanner(status: IpdOutboxSyncStatus, onDismissFailed: (() -> Unit)? = null) {
     val hasFailed = status.failedCount > 0
     val bg = if (hasFailed) StatusErrorBg else StatusWarningBg
     val border = if (hasFailed) StatusErrorBorder else StatusWarningBorder
@@ -124,15 +124,31 @@ private fun OutboxSyncBanner(status: IpdOutboxSyncStatus) {
         else -> "${status.pendingCount} change${if (status.pendingCount == 1) "" else "s"} waiting to sync"
     }
     Surface(color = bg, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, border), modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Icon(
-                if (hasFailed) Icons.Filled.ErrorOutline else Icons.Filled.CloudSync,
-                contentDescription = null,
-                tint = text,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(message, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = text)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                Icon(
+                    if (hasFailed) Icons.Filled.ErrorOutline else Icons.Filled.CloudSync,
+                    contentDescription = null,
+                    tint = text,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(message, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = text)
+            }
+            if (hasFailed && onDismissFailed != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Dismiss",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = text,
+                    modifier = Modifier.clickable { onDismissFailed() }
+                )
+            }
         }
     }
 }
@@ -193,6 +209,7 @@ fun IpdWardHomeScreen(
     onTaskListClick: () -> Unit,
     onPatientClick: (IpdAdmission) -> Unit,
     onNewAdmissionClick: (() -> Unit)? = null,
+    onDismissFailedOutbox: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val counts = remember(admissions, tasks) { IpdTaskListDerivation.tileCounts(admissions.size, tasks) }
@@ -244,7 +261,7 @@ fun IpdWardHomeScreen(
             }
 
             if (outboxStatus.hasAnything) {
-                item { OutboxSyncBanner(outboxStatus) }
+                item { OutboxSyncBanner(outboxStatus, onDismissFailedOutbox) }
             }
 
             item {

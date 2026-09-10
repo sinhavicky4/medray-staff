@@ -86,22 +86,34 @@ fun IpdVitalsEntryDialog(patientName: String, onDismiss: () -> Unit, onSave: (Cr
             }
         }
 
+        val respInt = respRate.toIntOrNull()
+        val isRespInvalid = respRate.isNotBlank() && (respInt == null || respInt !in 5..80)
+        val pulseInt = pulse.toIntOrNull()
+        val isPulseInvalid = pulse.isNotBlank() && (pulseInt == null || pulseInt !in 20..250)
+        val tempDouble = temp.toDoubleOrNull()
+        val isTempInvalid = temp.isNotBlank() && (tempDouble == null || tempDouble !in 80.0..115.0)
+        val spo2Int = spo2.toIntOrNull()
+        val isSpo2Invalid = spo2.isNotBlank() && (spo2Int == null || spo2Int !in 0..100)
+        val painInt = painScore.toIntOrNull()
+        val isPainInvalid = painScore.isNotBlank() && (painInt == null || painInt !in 0..10)
+        val isAnyInvalid = isRespInvalid || isPulseInvalid || isTempInvalid || isSpo2Invalid || isPainInvalid
+
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(value = systolic, onValueChange = { if (it.length <= 3) systolic = it }, label = { Text("Sys", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(value = diastolic, onValueChange = { if (it.length <= 3) diastolic = it }, label = { Text("Dia", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(value = pulse, onValueChange = { if (it.length <= 3) pulse = it }, label = { Text("Pulse (bpm)", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = spo2, onValueChange = { if (it.length <= 3) spo2 = it }, label = { Text("SpO2 (%)", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = pulse, onValueChange = { if (it.length <= 3) pulse = it }, label = { Text(if (isPulseInvalid) "Pulse (20-250)" else "Pulse (bpm)", fontSize = 11.sp) }, isError = isPulseInvalid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = spo2, onValueChange = { if (it.length <= 3) spo2 = it }, label = { Text(if (isSpo2Invalid) "SpO2 (0-100)" else "SpO2 (%)", fontSize = 11.sp) }, isError = isSpo2Invalid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(value = temp, onValueChange = { if (it.length <= 5) temp = it }, label = { Text("Temp (°F)", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = respRate, onValueChange = { if (it.length <= 3) respRate = it }, label = { Text("Resp Rate", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = temp, onValueChange = { if (it.length <= 5) temp = it }, label = { Text(if (isTempInvalid) "Temp (80-115)" else "Temp (°F)", fontSize = 11.sp) }, isError = isTempInvalid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = respRate, onValueChange = { if (it.length <= 3) respRate = it }, label = { Text(if (isRespInvalid) "Resp (5-80)" else "Resp Rate", fontSize = 11.sp) }, isError = isRespInvalid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(value = bloodGlucose, onValueChange = { if (it.length <= 5) bloodGlucose = it }, label = { Text("Glucose", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = painScore, onValueChange = { if (it.length <= 2) painScore = it }, label = { Text("Pain (0-10)", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = painScore, onValueChange = { if (it.length <= 2) painScore = it }, label = { Text(if (isPainInvalid) "Pain (0-10)" else "Pain (0-10)", fontSize = 11.sp) }, isError = isPainInvalid, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
             }
         }
 
@@ -123,6 +135,7 @@ fun IpdVitalsEntryDialog(patientName: String, onDismiss: () -> Unit, onSave: (Cr
                         )
                     )
                 },
+                enabled = !isAnyInvalid,
                 colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.weight(1f)

@@ -1051,6 +1051,15 @@ class IpdRepository(private val context: Context) {
         )
     }
 
+    suspend fun clearPermanentlyFailedOutbox(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            db.outboxDao().clearPermanentlyFailed()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun getLocalAdmissions(clinicId: String): Flow<List<IpdAdmission>> =
         db.ipdAdmissionDao().getAdmissions(clinicId).map { entities -> entities.map { it.toDomain() } }
 

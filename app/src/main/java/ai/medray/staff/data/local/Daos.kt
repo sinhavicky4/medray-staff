@@ -98,4 +98,7 @@ interface OutboxDao {
 
     @Query("SELECT COUNT(*) FROM outbox_commands WHERE failedPermanently = 1")
     suspend fun getFailedCount(): Int
+
+    @Query("DELETE FROM outbox_commands WHERE failedPermanently = 1")
+    suspend fun clearPermanentlyFailed()
 }

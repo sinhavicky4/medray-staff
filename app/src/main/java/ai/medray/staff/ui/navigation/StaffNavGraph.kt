@@ -1316,7 +1316,13 @@ fun StaffAppNavHost(
                                 showTakeAdmissionDialog = true
                                 coroutineScope.launch { loadAvailableBeds() }
                             }
-                        } else null
+                        } else null,
+                        onDismissFailedOutbox = {
+                            coroutineScope.launch {
+                                ipdRepo.clearPermanentlyFailedOutbox()
+                                ipdOutboxStatus = ipdRepo.getOutboxSyncStatus()
+                            }
+                        }
                     )
                 }
 
