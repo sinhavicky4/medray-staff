@@ -573,6 +573,8 @@ fun StaffAppNavHost(
     var bookAppointmentBusy by remember { mutableStateOf(false) }
     var patientDetailDocuments by remember { mutableStateOf<List<PatientDocument>>(emptyList()) }
     var patientDetailDocumentsLoading by remember { mutableStateOf(false) }
+    var patientDetailAdmissions by remember { mutableStateOf<List<IpdAdmission>>(emptyList()) }
+    var patientDetailAdmissionsLoading by remember { mutableStateOf(false) }
     var showUploadDocumentDialog by remember { mutableStateOf(false) }
     var uploadDocTargetPatient by remember { mutableStateOf<Patient?>(null) }
     var uploadDocTargetVisitId by remember { mutableStateOf<String?>(null) }
@@ -1278,6 +1280,8 @@ fun StaffAppNavHost(
                             patientDetailVisitsLoading = true
                             patientDetailDocuments = emptyList()
                             patientDetailDocumentsLoading = true
+                            patientDetailAdmissions = emptyList()
+                            patientDetailAdmissionsLoading = true
                             coroutineScope.launch {
                                 val res = visitRepo.getPatientVisits(patient.id)
                                 patientDetailVisits = res.getOrDefault(emptyList())
@@ -1287,6 +1291,11 @@ fun StaffAppNavHost(
                                 val res = patientRepo.listDocuments(patient.id)
                                 patientDetailDocuments = res.getOrDefault(emptyList())
                                 patientDetailDocumentsLoading = false
+                            }
+                            coroutineScope.launch {
+                                val res = ipdRepo.listAdmissionsByPatient(patient.id)
+                                patientDetailAdmissions = res.getOrDefault(emptyList())
+                                patientDetailAdmissionsLoading = false
                             }
                         },
                         onRegisterPatientClick = { showWalkInDialog = true },
@@ -1999,7 +2008,14 @@ fun StaffAppNavHost(
             visitsLoading = patientDetailVisitsLoading,
             documents = patientDetailDocuments,
             documentsLoading = patientDetailDocumentsLoading,
+            admissions = patientDetailAdmissions,
+            admissionsLoading = patientDetailAdmissionsLoading,
             onDismiss = { patientDetailTarget = null },
+            onOpenIpdAdmission = { admissionId ->
+                patientDetailTarget = null
+                ipdChartTargetAdmissionId = admissionId
+                navController.navigate(Screen.IpdPatientChart.route)
+            },
             onAddToQueueClick = {
                 patientDetailTarget = null
                 selectedPatientForDirectQueue = patient

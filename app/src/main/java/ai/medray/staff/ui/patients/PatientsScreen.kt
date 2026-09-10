@@ -37,9 +37,11 @@ import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
+import ai.medray.staff.data.network.IpdAdmission
+import ai.medray.staff.data.network.AdmissionStatus
 import ai.medray.staff.ui.theme.*
 
-private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS, DOCUMENTS }
+private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS, DOCUMENTS, ADMISSIONS }
 
 private enum class PatientGenderFilter { ALL, MALE, FEMALE, SENIORS }
 
@@ -492,12 +494,15 @@ fun PatientDetailsDialog(
     visitsLoading: Boolean = false,
     documents: List<PatientDocument> = emptyList(),
     documentsLoading: Boolean = false,
+    admissions: List<IpdAdmission> = emptyList(),
+    admissionsLoading: Boolean = false,
     onDismiss: () -> Unit,
     onAddToQueueClick: () -> Unit = {},
     onBookAppointmentClick: () -> Unit = {},
     onUploadDocumentClick: () -> Unit = {},
     onDeleteDocumentClick: (PatientDocument) -> Unit = {},
-    onViewDocumentClick: (PatientDocument) -> Unit = {}
+    onViewDocumentClick: (PatientDocument) -> Unit = {},
+    onOpenIpdAdmission: (String) -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -579,6 +584,7 @@ fun PatientDetailsDialog(
                     QuickFilterPill(label = "Visits (${visits.size})", isSelected = tab == PatientDetailTab.VISITS, onClick = { tab = PatientDetailTab.VISITS })
                     QuickFilterPill(label = "Prescriptions (${prescriptions.size})", isSelected = tab == PatientDetailTab.PRESCRIPTIONS, onClick = { tab = PatientDetailTab.PRESCRIPTIONS })
                     QuickFilterPill(label = "Documents (${documents.size})", isSelected = tab == PatientDetailTab.DOCUMENTS, onClick = { tab = PatientDetailTab.DOCUMENTS })
+                    QuickFilterPill(label = "Inpatient Stays (${admissions.size})", isSelected = tab == PatientDetailTab.ADMISSIONS, onClick = { tab = PatientDetailTab.ADMISSIONS })
                 }
 
                 HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
@@ -587,6 +593,14 @@ fun PatientDetailsDialog(
                     when (tab) {
                         PatientDetailTab.OVERVIEW -> {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val activeStay = admissions.firstOrNull { it.status == AdmissionStatus.INPATIENT || it.status == AdmissionStatus.DISCHARGE_INITIATED }
+                                if (activeStay != null) {
+                                    ActiveInpatientStayBanner(
+                                        admission = activeStay,
+                                        onOpenChart = { onOpenIpdAdmission(activeStay.id) }
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
                                 InfoRow("Age & Gender", "${patient.age ?: "Unknown"} yrs · ${patient.gender.lowercase().replaceFirstChar { it.uppercase() }}")
                                 if (!patient.dob.isNullOrBlank()) {
                                     InfoRow("Date of Birth", formatDateDisplay(patient.dob))
@@ -691,6 +705,32 @@ fun PatientDetailsDialog(
                                             document = doc,
                                             onViewClick = { onViewDocumentClick(doc) },
                                             onDeleteClick = { onDeleteDocumentClick(doc) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        PatientDetailTab.ADMISSIONS -> {
+                            if (admissionsLoading) {
+                                Text("Loading inpatient admissions…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else if (admissions.isEmpty()) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Filled.LocalHospital, contentDescription = null, tint = Slate300, modifier = Modifier.size(36.dp))
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text("No inpatient admissions on record for this patient.", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    admissions.forEach { adm ->
+                                        IpdAdmissionSummaryCard(
+                                            admission = adm,
+                                            onOpenChart = { onOpenIpdAdmission(adm.id) }
                                         )
                                     }
                                 }
@@ -985,3 +1025,144 @@ fun PatientDocumentCard(
         }
     }
 }
+
+@Composable
+private fun ActiveInpatientStayBanner(
+    admission: IpdAdmission,
+    onOpenChart: () -> Unit
+) {
+    val isDischargeInitiated = admission.status == AdmissionStatus.DISCHARGE_INITIATED
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isDischargeInitiated) Color(0xFFFEF3C7) else Color(0xFFEFF6FF)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isDischargeInitiated) Color(0xFFFDE68A) else Color(0xFFBFDBFE)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        if (isDischargeInitiated) "CURRENT INPATIENT STAY · DISCHARGE INITIATED" else "CURRENT INPATIENT STAY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDischargeInitiated) Color(0xFFB45309) else MedRayBluePrimary
+                    )
+                    Text("#${admission.admissionNumber}", fontSize = 11.sp, color = Slate500)
+                }
+                Text(
+                    text = "${admission.currentBed?.room?.ward?.name ?: "Ward"} · Bed ${admission.currentBed?.label ?: "—"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    admission.attendingDoctor?.let { doc ->
+                        Text("Attending: Dr. ${doc.fullName}", style = MaterialTheme.typography.bodySmall, color = Slate600)
+                    }
+                    Text("Admitted: ${formatDateDisplay(admission.admissionDateTime)}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onOpenChart,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isDischargeInitiated) Color(0xFFD97706) else MedRayBluePrimary
+                ),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("Open Ward Chart", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun IpdAdmissionSummaryCard(
+    admission: IpdAdmission,
+    onOpenChart: () -> Unit
+) {
+    val (statusBg, statusFg, statusLabel) = when (admission.status) {
+        AdmissionStatus.INPATIENT -> Triple(Color(0xFFDBEAFE), Color(0xFF1E40AF), "INPATIENT")
+        AdmissionStatus.DISCHARGE_INITIATED -> Triple(Color(0xFFFEF3C7), Color(0xFF92400E), "DISCHARGE INITIATED")
+        AdmissionStatus.DISCHARGED -> Triple(Color(0xFFDCFCE7), Color(0xFF166534), "DISCHARGED")
+        AdmissionStatus.CANCELLED -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), "CANCELLED")
+        else -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), admission.status.name)
+    }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = PureWhite),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Admission #${admission.admissionNumber}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    Surface(color = statusBg, shape = RoundedCornerShape(6.dp)) {
+                        Text(
+                            text = statusLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = statusFg,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onOpenChart,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text("Open Ward Chart", style = MaterialTheme.typography.labelMedium, color = MedRayBluePrimary)
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Ward & Bed", style = MaterialTheme.typography.labelSmall, color = Slate500)
+                    Text("${admission.currentBed?.room?.ward?.name ?: "—"} / Bed ${admission.currentBed?.label ?: "—"}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Admitted", style = MaterialTheme.typography.labelSmall, color = Slate500)
+                    Text(formatDateDisplay(admission.admissionDateTime), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Discharged", style = MaterialTheme.typography.labelSmall, color = Slate500)
+                    val disText = admission.dischargedAt?.let { formatDateDisplay(it) }
+                        ?: if (admission.status == AdmissionStatus.INPATIENT || admission.status == AdmissionStatus.DISCHARGE_INITIATED) "Active" else "—"
+                    Text(disText, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            if (!admission.provisionalDiagnosis.isNullOrBlank() || !admission.reasonForAdmission.isNullOrBlank()) {
+                Surface(color = Slate50, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (!admission.reasonForAdmission.isNullOrBlank()) {
+                            Text("Reason: ${admission.reasonForAdmission}", style = MaterialTheme.typography.bodySmall, color = Slate700)
+                        }
+                        if (!admission.provisionalDiagnosis.isNullOrBlank()) {
+                            Text("Diagnosis: ${admission.provisionalDiagnosis}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Slate900)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

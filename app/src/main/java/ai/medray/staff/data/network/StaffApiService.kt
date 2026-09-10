@@ -726,6 +726,7 @@ interface StaffApiService {
     @GET("ipd/admissions")
     suspend fun listIpdAdmissions(
         @Query("status") status: AdmissionStatus? = null,
+        @Query("patientId") patientId: String? = null,
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int? = null,
         @Query("clinicId") clinicId: String? = null

@@ -1103,6 +1103,20 @@ class IpdRepository(private val context: Context) {
         }
     }
 
+    suspend fun listAdmissionsByPatient(patientId: String): Result<List<IpdAdmission>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdAdmissions(patientId = patientId, limit = 50, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception("Failed to load patient admissions (${res.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getAdmission(admissionId: String): Result<IpdAdmission> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         try {
