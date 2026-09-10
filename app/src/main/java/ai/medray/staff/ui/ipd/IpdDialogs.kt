@@ -271,3 +271,115 @@ fun InvestigationResultEntryDialog(investigation: InvestigationOrder, onDismiss:
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StaffBedTransferDialog(
+    currentBedLabel: String,
+    availableBeds: List<IpdBed>,
+    isLoadingBeds: Boolean = false,
+    onDismiss: () -> Unit,
+    onTransfer: (toBedId: String, reason: String?) -> Unit
+) {
+    var selectedBedId by remember(availableBeds) { mutableStateOf(availableBeds.firstOrNull()?.id ?: "") }
+    var reason by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    val quickReasons = listOf("ICU Transfer", "Step-down to Ward", "Patient Request", "Isolation / Infection", "Bed Maintenance")
+
+    DialogShell(title = "Transfer Bed", subtitle = "Current: $currentBedLabel", onDismiss = onDismiss) {
+        if (isLoadingBeds) {
+            Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MedRayBluePrimary)
+            }
+        } else if (availableBeds.isEmpty()) {
+            Surface(color = StatusWarningBg, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "No available beds in the clinic right now.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StatusWarningText,
+                    modifier = Modifier.padding(14.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Close")
+            }
+        } else {
+            Text("Select New Bed", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Slate700)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            var expanded by remember { mutableStateOf(false) }
+            val selectedBed = availableBeds.find { it.id == selectedBedId } ?: availableBeds.first()
+
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                OutlinedTextField(
+                    value = "${selectedBed.label} — ${selectedBed.room?.name ?: "Room"}, ${selectedBed.room?.ward?.name ?: "Ward"}",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    availableBeds.forEach { bed ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(bed.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                    Text("${bed.room?.name ?: "Room"} · ${bed.room?.ward?.name ?: "Ward"}", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                                }
+                            },
+                            onClick = {
+                                selectedBedId = bed.id
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Transfer Reason (optional)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Slate700)
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                placeholder = { Text("e.g. Moved to step-down ward") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                quickReasons.take(3).forEach { qr ->
+                    AssistChip(
+                        onClick = { reason = qr },
+                        label = { Text(qr, fontSize = 11.sp) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f)) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        if (selectedBedId.isNotBlank()) {
+                            isSubmitting = true
+                            onTransfer(selectedBedId, reason.trim().ifBlank { null })
+                        }
+                    },
+                    enabled = selectedBedId.isNotBlank() && !isSubmitting,
+                    colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isSubmitting) "Transferring…" else "Transfer Bed", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}

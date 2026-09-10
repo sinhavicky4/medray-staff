@@ -1412,7 +1412,13 @@ class IpdRepository(private val context: Context) {
             if (res.isSuccessful) {
                 Result.success(Unit)
             } else {
-                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to transfer bed"))
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to transfer bed")
+                } catch (_: Exception) {
+                    err ?: "Failed to transfer bed"
+                }
+                Result.failure(Exception(message))
             }
         } catch (e: Exception) {
             Result.failure(e)

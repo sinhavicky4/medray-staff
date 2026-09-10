@@ -76,6 +76,7 @@ fun IpdPatientChartScreen(
     onToggleChecklistItem: (String, Boolean) -> Unit,
     onAssignDoctor: ((doctorId: String, reason: String?) -> Unit)? = null,
     onFinalizeDischarge: (() -> Unit)? = null,
+    onTransferBedClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -146,7 +147,24 @@ fun IpdPatientChartScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("UHID ${admission.patient?.uhid ?: "—"} · ${currentBedLabel(admission)}", style = MaterialTheme.typography.bodySmall, color = Slate600)
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("UHID ${admission.patient?.uhid ?: "—"} · ${currentBedLabel(admission)}", style = MaterialTheme.typography.bodySmall, color = Slate600)
+                        if (onTransferBedClick != null && admission.status == AdmissionStatus.INPATIENT) {
+                            OutlinedButton(
+                                onClick = onTransferBedClick,
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Transfer Bed", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     admission.attendingDoctor?.fullName?.let {
                         Text("Attending: $it", style = MaterialTheme.typography.bodySmall, color = Slate600)
                     }

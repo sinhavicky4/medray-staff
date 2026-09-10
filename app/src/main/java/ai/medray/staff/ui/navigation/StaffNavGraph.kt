@@ -483,7 +483,9 @@ fun StaffAppNavHost(
     val ipdPendingTaskCount = ipdTasks.size
     var ipdWardSearchQuery by remember { mutableStateOf("") }
     var showTakeAdmissionDialog by remember { mutableStateOf(false) }
+    var showBedTransferDialog by remember { mutableStateOf(false) }
     var ipdAvailableBeds by remember { mutableStateOf<List<IpdBed>>(emptyList()) }
+    var ipdAvailableBedsLoading by remember { mutableStateOf(false) }
     var ipdAdmissionBusy by remember { mutableStateOf(false) }
     var ipdAdmissionError by remember { mutableStateOf<String?>(null) }
     val canCreateIpdAdmission = remember(currentUser) {
@@ -493,9 +495,14 @@ fun StaffAppNavHost(
     }
 
     suspend fun loadAvailableBeds() {
-        val res = ipdRepo.listAvailableBeds()
-        if (res.isSuccess) {
-            ipdAvailableBeds = res.getOrDefault(emptyList())
+        ipdAvailableBedsLoading = true
+        try {
+            val res = ipdRepo.listAvailableBeds()
+            if (res.isSuccess) {
+                ipdAvailableBeds = res.getOrDefault(emptyList())
+            }
+        } finally {
+            ipdAvailableBedsLoading = false
         }
     }
 
@@ -1462,6 +1469,10 @@ fun StaffAppNavHost(
                                         refreshIpdWard()
                                     }
                                 }
+                            },
+                            onTransferBedClick = {
+                                showBedTransferDialog = true
+                                coroutineScope.launch { loadAvailableBeds() }
                             }
                         )
                     }
@@ -2250,6 +2261,35 @@ fun StaffAppNavHost(
                         ipdAdmissionError = e.message ?: "An unexpected error occurred"
                     } finally {
                         ipdAdmissionBusy = false
+                    }
+                }
+            }
+        )
+    }
+
+    if (showBedTransferDialog) {
+        val activeAdmission = ipdChart.admission
+        val currentBed = activeAdmission?.bedAssignments?.firstOrNull { assignment -> assignment.status == BedAssignmentStatus.ACTIVE }?.bed?.label
+            ?: activeAdmission?.bedAssignments?.firstOrNull()?.bed?.label
+            ?: "Unassigned"
+        StaffBedTransferDialog(
+            currentBedLabel = currentBed,
+            availableBeds = ipdAvailableBeds,
+            isLoadingBeds = ipdAvailableBedsLoading,
+            onDismiss = { showBedTransferDialog = false },
+            onTransfer = { toBedId, reason ->
+                val admissionId = activeAdmission?.id ?: ipdChartTargetAdmissionId
+                if (admissionId != null) {
+                    coroutineScope.launch {
+                        val res = ipdRepo.transferBed(admissionId, toBedId, reason)
+                        if (res.isSuccess) {
+                            showBedTransferDialog = false
+                            Toast.makeText(context, "Bed transferred successfully", Toast.LENGTH_SHORT).show()
+                            loadIpdChartData(admissionId)
+                            refreshIpdWard()
+                        } else {
+                            Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to transfer bed", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
