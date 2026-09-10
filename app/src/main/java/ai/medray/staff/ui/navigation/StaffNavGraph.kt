@@ -67,7 +67,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
+import java.util.Collections
 import ai.medray.staff.domain.IpdTaskListDerivation
 import ai.medray.staff.domain.IpdTaskListItem
 import ai.medray.staff.domain.IpdTaskType
@@ -516,39 +518,51 @@ fun StaffAppNavHost(
     suspend fun loadIpdChartData(admissionId: String) {
         ipdChart = ipdChart.copy(isLoading = true)
         ipdChartError = null
-        val admissionRes = ipdRepo.getAdmission(admissionId)
-        if (admissionRes.isFailure) {
-            ipdChartError = admissionRes.exceptionOrNull()?.message ?: "Couldn't load this patient's chart"
-            ipdChart = ipdChart.copy(isLoading = false)
-            return
-        }
-        coroutineScope {
-            val failed = mutableSetOf<String>()
-            suspend fun <T> loadSection(name: String, fetch: suspend () -> Result<List<T>>): List<T> =
-                fetch().getOrElse { failed += name; emptyList() }
-
-            val vitalsDeferred = async { loadSection("Vitals") { ipdRepo.listVitals(admissionId) } }
-            val notesDeferred = async { loadSection("Nursing") { ipdRepo.listNursingNotes(admissionId) } }
-            val progressNotesDeferred = async { loadSection("Progress Notes") { ipdRepo.listProgressNotes(admissionId) } }
-            val medsDeferred = async { loadSection("Medications") { ipdRepo.listMedicationOrders(admissionId) } }
-            val investigationsDeferred = async { loadSection("Investigations") { ipdRepo.listInvestigations(admissionId) } }
-            val timelineDeferred = async { loadSection("Timeline") { ipdRepo.listTimeline(admissionId) } }
-            // Empty (not a failure) before discharge is ever initiated — the
-            // backend only seeds rows at that point (spec §17's checklist),
-            // same "nothing to show yet" shape as every other empty section.
-            val checklistDeferred = async { loadSection("Discharge Checklist") { ipdRepo.listDischargeChecklist(admissionId) } }
-            ipdChart = IpdChartData(
+        try {
+            val admissionRes = ipdRepo.getAdmission(admissionId)
+            if (admissionRes.isFailure) {
+                ipdChartError = admissionRes.exceptionOrNull()?.message ?: "Couldn't load this patient's chart"
+                return
+            }
+            // Show the admission header immediately so the user isn't blocked by child section network calls
+            ipdChart = ipdChart.copy(
                 admission = admissionRes.getOrNull(),
-                vitals = vitalsDeferred.await(),
-                notes = notesDeferred.await(),
-                progressNotes = progressNotesDeferred.await(),
-                medicationOrders = medsDeferred.await(),
-                investigations = investigationsDeferred.await(),
-                timeline = timelineDeferred.await(),
-                dischargeChecklist = checklistDeferred.await(),
-                isLoading = false,
-                failedSections = failed,
+                isLoading = true
             )
+            supervisorScope {
+                val failed = Collections.synchronizedSet(mutableSetOf<String>())
+                suspend fun <T> loadSection(name: String, fetch: suspend () -> Result<List<T>>): List<T> =
+                    fetch().getOrElse { failed += name; emptyList() }
+
+                val vitalsDeferred = async { loadSection("Vitals") { ipdRepo.listVitals(admissionId) } }
+                val notesDeferred = async { loadSection("Nursing") { ipdRepo.listNursingNotes(admissionId) } }
+                val progressNotesDeferred = async { loadSection("Progress Notes") { ipdRepo.listProgressNotes(admissionId) } }
+                val medsDeferred = async { loadSection("Medications") { ipdRepo.listMedicationOrders(admissionId) } }
+                val investigationsDeferred = async { loadSection("Investigations") { ipdRepo.listInvestigations(admissionId) } }
+                val timelineDeferred = async { loadSection("Timeline") { ipdRepo.listTimeline(admissionId) } }
+                // Empty (not a failure) before discharge is ever initiated — the
+                // backend only seeds rows at that point (spec §17's checklist),
+                // same "nothing to show yet" shape as every other empty section.
+                val checklistDeferred = async { loadSection("Discharge Checklist") { ipdRepo.listDischargeChecklist(admissionId) } }
+                ipdChart = IpdChartData(
+                    admission = admissionRes.getOrNull(),
+                    vitals = vitalsDeferred.await(),
+                    notes = notesDeferred.await(),
+                    progressNotes = progressNotesDeferred.await(),
+                    medicationOrders = medsDeferred.await(),
+                    investigations = investigationsDeferred.await(),
+                    timeline = timelineDeferred.await(),
+                    dischargeChecklist = checklistDeferred.await(),
+                    isLoading = false,
+                    failedSections = failed.toSet(),
+                )
+            }
+        } catch (e: Exception) {
+            if (ipdChart.admission == null) {
+                ipdChartError = e.message ?: "Couldn't load this patient's chart"
+            }
+        } finally {
+            ipdChart = ipdChart.copy(isLoading = false)
         }
     }
 

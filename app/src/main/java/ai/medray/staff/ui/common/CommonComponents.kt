@@ -46,6 +46,10 @@ import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.domain.UpiQrGenerator
 import ai.medray.staff.domain.VitalsSeverity
 import ai.medray.staff.domain.VitalsValidator
+import ai.medray.staff.domain.InvoicePdfGenerator
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.foundation.BorderStroke
+import java.util.Locale
 import ai.medray.staff.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1002,30 +1006,56 @@ fun InvoiceDetailDialog(
 ) {
     val scrollState = rememberScrollState()
     val patient = invoice.patient
+    val clinic = invoice.clinic
+    val effectiveClinicName = clinic?.name?.ifBlank { null } ?: "MedRay Healthcare Clinic"
+    val gstNumber = clinic?.gstNumber?.trim()
+    val panNumber = clinic?.panNumber?.trim()?.ifBlank { null }
+        ?: if (!gstNumber.isNullOrBlank() && gstNumber.length >= 12) gstNumber.substring(2, 12) else null
+
     val isPaid = invoice.status == InvoiceStatus.PAID
-    val statusBg = if (isPaid) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
-    val statusText = if (isPaid) Color(0xFF16A34A) else Color(0xFFD97706)
+    val statusBg = when (invoice.status) {
+        InvoiceStatus.PAID -> Color(0xFFDCFCE7)
+        InvoiceStatus.PARTIALLY_PAID -> Color(0xFFFEF3C7)
+        InvoiceStatus.REFUNDED -> Color(0xFFFEE2E2)
+        else -> Color(0xFFDBEAFE)
+    }
+    val statusText = when (invoice.status) {
+        InvoiceStatus.PAID -> Color(0xFF16A34A)
+        InvoiceStatus.PARTIALLY_PAID -> Color(0xFFD97706)
+        InvoiceStatus.REFUNDED -> Color(0xFFDC2626)
+        else -> Color(0xFF2563EB)
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = PureWhite),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Slate100),
             modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.88f)
-                .padding(vertical = 16.dp)
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.92f)
+                .padding(vertical = 12.dp)
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                // Header
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top Control Toolbar
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PureWhite)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Bill Preview",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
                         Surface(color = MedRayBlueLight, shape = RoundedCornerShape(6.dp)) {
                             Text(
                                 text = "INV-${invoice.invoiceNumber}",
@@ -1046,172 +1076,406 @@ fun InvoiceDetailDialog(
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate400)
+
+                    // Action Buttons in Toolbar
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!patient?.phone.isNullOrBlank()) {
+                            Button(
+                                onClick = onShareWhatsApp,
+                                enabled = busyChannel == null,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                if (busyChannel != "whatsapp") {
+                                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(if (busyChannel == "whatsapp") "Sending…" else "WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (!patient?.email.isNullOrBlank()) {
+                            Button(
+                                onClick = onShareEmail,
+                                enabled = busyChannel == null,
+                                colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                if (busyChannel != "email") {
+                                    Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(if (busyChannel == "email") "Sending…" else "Email", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = onDownloadPdf,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Slate300),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate700),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Slate700)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download PDF", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate700)
+                        }
+                        Button(
+                            onClick = onPrint,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MedRayBluePrimary,
+                                contentColor = PureWhite
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(14.dp), tint = PureWhite)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Print", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PureWhite)
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate500)
+                        }
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Slate200)
+                HorizontalDivider(color = Slate200)
 
-                Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-                    Text(
-                        text = patient?.fullName ?: "OPD Patient",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Slate900
-                    )
-                    Text(
-                        text = listOfNotNull(
-                            patient?.uhid?.ifBlank { null }?.let { "UHID $it" },
-                            patient?.phone?.ifBlank { null }
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Slate500
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Line Items
-                    Surface(
-                        color = Slate50,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                // A4 Document Paper Container
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = PureWhite),
+                        border = BorderStroke(1.dp, Slate300),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "Line Items",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate700
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            invoice.lineItems.forEach { item ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            // 1. Clinic Letterhead Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1.4f)) {
+                                    Text(
+                                        text = effectiveClinicName,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
+                                    )
+                                    val clinicAddress = clinic?.address?.trim()
+                                    if (!clinicAddress.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(text = clinicAddress, fontSize = 12.sp, color = Slate600)
+                                    }
+                                    val contactLine = listOfNotNull(
+                                        clinic?.phone?.ifBlank { null }?.let { "Tel: $it" },
+                                        clinic?.upiId?.ifBlank { null }?.let { "UPI: $it" }
+                                    ).joinToString("   ·   ")
+                                    if (contactLine.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(text = contactLine, fontSize = 11.sp, color = Slate500)
+                                    }
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Text(item.description, style = MaterialTheme.typography.bodyMedium, color = Slate800, modifier = Modifier.weight(1f))
-                                    Text("₹${item.amount.toInt()}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Slate900)
+                                    if (!gstNumber.isNullOrBlank()) {
+                                        Text(text = "GSTIN: $gstNumber", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate800)
+                                    }
+                                    if (!panNumber.isNullOrBlank()) {
+                                        Text(text = "PAN: $panNumber", fontSize = 11.sp, color = Slate600)
+                                    }
+                                    Text(text = "State: 07-Delhi", fontSize = 11.sp, color = Slate600)
                                 }
                             }
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(Slate900))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                    // Totals
-                    Surface(
-                        color = Slate50,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            InvoiceTotalRow("Subtotal", invoice.subtotal)
-                            if (invoice.discountAmount > 0) InvoiceTotalRow("Discount", -invoice.discountAmount)
-                            InvoiceTotalRow("Total", invoice.total, bold = true)
-                            InvoiceTotalRow("Paid", invoice.netPaid)
-                            InvoiceTotalRow("Balance Due", invoice.balanceDue, bold = true, valueColor = if (invoice.balanceDue > 0) Color(0xFFD97706) else Color(0xFF16A34A))
-                        }
-                    }
-
-                    if (invoice.payments.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            color = Slate50,
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            // 2. Document Title & Legal Classification
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = "Payments",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Slate700
+                                    text = "TAX INVOICE / BILL OF SUPPLY",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp,
+                                    color = Slate900
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                invoice.payments.forEach { payment ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(formatIsoDateTimeLocal(payment.recordedAt), style = MaterialTheme.typography.bodySmall, color = Slate600)
-                                            Text(payment.method.name, style = MaterialTheme.typography.labelSmall, color = Slate400)
+                                Surface(color = statusBg, shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        text = invoice.status.name.replace("_", " "),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusText,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 3. Patient & Encounter Box (2-Column)
+                            Surface(
+                                color = Slate50,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Slate300),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Left Column: Patient Details
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        InvoiceMetaRow("Patient:", patient?.fullName ?: "OPD Patient", boldValue = true)
+                                        InvoiceMetaRow("UHID:", patient?.uhid ?: "—", monospace = true)
+                                        val ageSex = listOfNotNull(
+                                            patient?.age?.let { "${it} Y" },
+                                            patient?.gender?.lowercase()?.replaceFirstChar { it.titlecase(Locale.ROOT) }
+                                        ).joinToString(" / ").ifBlank { "—" }
+                                        InvoiceMetaRow("Age / Sex:", ageSex)
+                                        InvoiceMetaRow("Contact:", patient?.phone ?: "—")
+                                        val patientAddress = patient?.address?.trim()
+                                        if (!patientAddress.isNullOrBlank()) {
+                                            InvoiceMetaRow("Address:", patientAddress)
                                         }
-                                        Text("₹${payment.amount.toInt()}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Slate900)
+                                    }
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    // Right Column: Encounter Details
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        InvoiceMetaRow("Invoice No:", "INV-${invoice.invoiceNumber}", boldValue = true, monospace = true)
+                                        val dtText = if (!invoice.createdAt.isNullOrBlank()) formatIsoDateTimeLocal(invoice.createdAt) else "—"
+                                        InvoiceMetaRow("Date & Time:", dtText)
+                                        InvoiceMetaRow("Encounter:", "General OPD Consultation")
+                                        InvoiceMetaRow("Dept / Place:", "Outpatient Department")
                                     }
                                 }
                             }
-                        }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                // Bottom Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (!patient?.phone.isNullOrBlank()) {
-                        Button(
-                            onClick = onShareWhatsApp,
-                            enabled = busyChannel == null,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (busyChannel != "whatsapp") {
-                                Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
+                            // 4. Itemized Service Table
+                            Surface(
+                                color = PureWhite,
+                                shape = RoundedCornerShape(4.dp),
+                                border = BorderStroke(1.dp, Slate300),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Slate100)
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("#", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.width(26.dp), textAlign = TextAlign.Center)
+                                        Text("Particulars / Service Description", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(3f))
+                                        Text("SAC Code", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.1f), textAlign = TextAlign.Center)
+                                        Text("Qty", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                                        Text("Rate (₹)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
+                                        Text("GST Rate", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.2f), textAlign = TextAlign.Center)
+                                        Text("Amount (₹)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                                    }
+                                    HorizontalDivider(color = Slate300)
+
+                                    invoice.lineItems.forEachIndexed { idx, item ->
+                                        val (sacCode, sacLabel) = getInvoiceSacDetails(item.kind, item.description)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("${idx + 1}", fontSize = 11.sp, color = Slate500, modifier = Modifier.width(26.dp), textAlign = TextAlign.Center)
+                                            Column(modifier = Modifier.weight(3f)) {
+                                                Text(item.description, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Slate900)
+                                                Text(sacLabel, fontSize = 10.sp, color = Slate500)
+                                            }
+                                            Text(sacCode, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = Slate700, modifier = Modifier.weight(1.1f), textAlign = TextAlign.Center)
+                                            Text("${item.quantity.coerceAtLeast(1)}", fontSize = 11.sp, color = Slate700, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                                            Text(String.format(Locale.ROOT, "%.2f", item.unitPrice.takeIf { it > 0 } ?: item.amount), fontSize = 11.sp, color = Slate700, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
+                                            Text("Exempt (0%)", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF047857), modifier = Modifier.weight(1.2f), textAlign = TextAlign.Center)
+                                            Text(String.format(Locale.ROOT, "%.2f", item.amount), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                                        }
+                                        HorizontalDivider(color = Slate200)
+                                    }
+
+                                    if (invoice.discountAmount > 0) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFFFEF2F2))
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("•", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), modifier = Modifier.width(26.dp), textAlign = TextAlign.Center)
+                                            val discDesc = listOfNotNull("Special Concession / Discount", invoice.discountReason?.ifBlank { null }).joinToString(" — ")
+                                            Text(discDesc, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFFB91C1C), modifier = Modifier.weight(5.8f))
+                                            Text("-${String.format(Locale.ROOT, "%.2f", invoice.discountAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                                        }
+                                        HorizontalDivider(color = Slate200)
+                                    }
+                                }
                             }
-                            Text(if (busyChannel == "whatsapp") "Sending…" else "WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    if (!patient?.email.isNullOrBlank()) {
-                        Button(
-                            onClick = onShareEmail,
-                            enabled = busyChannel == null,
-                            colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (busyChannel != "email") {
-                                Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // 5. Amount in Words & Totals
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Surface(
+                                    color = Slate50,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Slate200),
+                                    modifier = Modifier.weight(1.2f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("AMOUNT IN WORDS:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500, letterSpacing = 0.5.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            InvoicePdfGenerator.amountInWords(invoice.total),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Slate900
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    color = PureWhite,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Slate300),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        InvoiceSummaryRow("Subtotal", "₹${String.format(Locale.ROOT, "%.2f", invoice.subtotal)}")
+                                        if (invoice.discountAmount > 0) {
+                                            InvoiceSummaryRow("Discount", "-₹${String.format(Locale.ROOT, "%.2f", invoice.discountAmount)}", valueColor = Color(0xFFDC2626))
+                                        }
+                                        InvoiceSummaryRow("GST (CGST 0% + SGST 0%)", "₹0.00 (Exempt)", valueColor = Slate500)
+                                        HorizontalDivider(color = Slate200, modifier = Modifier.padding(vertical = 2.dp))
+                                        InvoiceSummaryRow("Net Payable", "₹${String.format(Locale.ROOT, "%.2f", invoice.total)}", isBold = true, fontSize = 13.sp)
+                                        InvoiceSummaryRow("Total Paid", "₹${String.format(Locale.ROOT, "%.2f", invoice.netPaid)}", valueColor = Color(0xFF16A34A), isBold = true)
+                                        InvoiceSummaryRow(
+                                            "Balance Due",
+                                            if (invoice.balanceDue > 0) "₹${String.format(Locale.ROOT, "%.2f", invoice.balanceDue)}" else "₹0.00 (Settled)",
+                                            isBold = true,
+                                            valueColor = if (invoice.balanceDue > 0) Color(0xFFD97706) else Color(0xFF16A34A)
+                                        )
+                                    }
+                                }
                             }
-                            Text(if (busyChannel == "email") "Sending…" else "Email", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                            // 6. Settlement Details (if any)
+                            if (invoice.payments.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text("SETTLEMENT / PAYMENT DETAILS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, letterSpacing = 0.5.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Surface(
+                                    color = PureWhite,
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, Slate300),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Slate100)
+                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        ) {
+                                            Text("Date & Time", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.5f))
+                                            Text("Payment Mode", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1f))
+                                            Text("Reference / Note", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(2f))
+                                            Text("Amount (₹)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                                        }
+                                        HorizontalDivider(color = Slate300)
+                                        invoice.payments.forEach { p ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(formatIsoDateTimeLocal(p.recordedAt), fontSize = 11.sp, color = Slate700, modifier = Modifier.weight(1.5f))
+                                                Text(p.method.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Slate800, modifier = Modifier.weight(1f))
+                                                Text(p.note?.ifBlank { null } ?: (if (p.amount < 0) "Refund" else "Cashier Receipt"), fontSize = 11.sp, color = Slate600, modifier = Modifier.weight(2f))
+                                                Text(
+                                                    (if (p.amount < 0) "-" else "") + "₹${String.format(Locale.ROOT, "%.2f", kotlin.math.abs(p.amount))}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (p.amount < 0) Color(0xFFDC2626) else Slate900,
+                                                    modifier = Modifier.weight(1.2f),
+                                                    textAlign = TextAlign.End
+                                                )
+                                            }
+                                            HorizontalDivider(color = Slate200)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 7. Terms & Hospital Policies (Only if set)
+                            val terms = clinic?.invoiceTerms?.trim()
+                            if (!terms.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Surface(
+                                    color = Slate50,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Slate200),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("Terms & Hospital Policies:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate800)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(terms, fontSize = 10.sp, color = Slate600, lineHeight = 14.sp)
+                                    }
+                                }
+                            }
+
+                            // 8. Sign-off & Audit Footer
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Column {
+                                    Text("Issued electronically", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700)
+                                    Text("This is a computer-generated document and does not require an ink signature.", fontSize = 10.sp, color = Slate500)
+                                    val nowStr = formatIsoDateTimeLocal(java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT).format(java.util.Date()))
+                                    Text("Print Timestamp: $nowStr", fontSize = 10.sp, color = Slate500)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Box(modifier = Modifier.width(160.dp).height(1.dp).background(Slate400))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Authorized Signatory / Cashier", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                                    Text("For $effectiveClinicName", fontSize = 10.sp, color = Slate600)
+                                }
+                            }
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDownloadPdf,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Download PDF", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    OutlinedButton(
-                        onClick = onPrint,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Print", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1220,18 +1484,47 @@ fun InvoiceDetailDialog(
 }
 
 @Composable
-private fun InvoiceTotalRow(label: String, amount: Double, bold: Boolean = false, valueColor: Color = Slate900) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (bold) Slate900 else Slate500, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+private fun InvoiceMetaRow(label: String, value: String, boldValue: Boolean = false, monospace: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.sp, color = Slate500, modifier = Modifier.width(76.dp))
         Text(
-            "${if (amount < 0) "-" else ""}₹${kotlin.math.abs(amount).toInt()}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.SemiBold,
-            color = if (bold) valueColor else Slate700
+            text = value,
+            fontSize = 11.sp,
+            fontWeight = if (boldValue) FontWeight.Bold else FontWeight.Normal,
+            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+            color = Slate800
         )
+    }
+}
+
+@Composable
+private fun InvoiceSummaryRow(label: String, value: String, isBold: Boolean = false, fontSize: androidx.compose.ui.unit.TextUnit = 11.sp, valueColor: Color = Slate900) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = fontSize, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal, color = if (isBold) Slate900 else Slate600)
+        Text(value, fontSize = fontSize, fontWeight = if (isBold) FontWeight.Bold else FontWeight.SemiBold, color = if (isBold && valueColor == Slate900) Slate900 else valueColor)
+    }
+}
+
+private fun getInvoiceSacDetails(kind: String?, description: String): Pair<String, String> {
+    return when (kind?.uppercase()) {
+        "CONSULTATION" -> "999312" to "Medical consultation services"
+        "PROCEDURE" -> "999311" to "Hospital & clinical procedure services"
+        "INVESTIGATION" -> "999316" to "Medical lab & diagnostic imaging"
+        "MEDICATION" -> "999316" to "Pharmaceutical supplies & medications"
+        "OTHER" -> "999319" to "Other healthcare services n.e.c."
+        else -> {
+            if (description.contains("Consult", ignoreCase = true)) {
+                "999312" to "Medical consultation services"
+            } else if (description.contains("Bed", ignoreCase = true) || description.contains("Ward", ignoreCase = true) || description.contains("Procedure", ignoreCase = true) || description.contains("Nursing", ignoreCase = true)) {
+                "999311" to "Hospital & clinical procedure services"
+            } else {
+                "999316" to "Medical lab & diagnostic imaging"
+            }
+        }
     }
 }
 

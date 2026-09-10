@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.5.4 Release Notes
+
+- **🩺 Ward Chart Stability & Safe Coroutine Execution**: Wrapped IPD ward chart loading in safe coroutine execution (`supervisorScope`, `try/finally`) to ensure loading indicators never get stuck indefinitely. Added thread-safe error tracking and immediate progressive rendering of admission details, bed, and attending physician upon opening.
+- **⚡ Production API Stability**: Ensured release builds target the production API endpoint with full error resilience across clinical and administrative roles.
+
 # MedRay Staff Version 0.5.3 Release Notes
 
 - **🏥 Mobile IPD Patient Admission Intake (Clinic Admin & Receptionist)**: Added the ability for Clinic Admin and Receptionist staff to admit patients directly from the mobile app. Supports searching existing patients (by name/UHID) or quick-registering new walk-ins, assigning admitting and attending doctors, clinical reason and provisional diagnosis, live bed allocation with fast-track inpatient confirmation, and attendant details.

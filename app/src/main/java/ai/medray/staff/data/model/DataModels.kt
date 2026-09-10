@@ -153,6 +153,8 @@ data class Clinic(
     val address: String? = null,
     val phone: String? = null,
     val gstNumber: String? = null,
+    val panNumber: String? = null,
+    val invoiceTerms: String? = null,
     val upiId: String? = null,
     val upiVpa: String? = null, // VPA for dynamic UPI QR generation
     val defaultConsultationFee: Double = 500.0,
@@ -318,7 +320,8 @@ data class InvoiceLineItem(
     val description: String,
     val quantity: Int = 1,
     val unitPrice: Double,
-    val amount: Double
+    val amount: Double,
+    val kind: String? = null
 ) : Serializable
 
 data class Payment(
@@ -337,6 +340,7 @@ data class Invoice(
     val visitId: String? = null,
     val status: InvoiceStatus = InvoiceStatus.ISSUED,
     val discountAmount: Double = 0.0,
+    val discountReason: String? = null,
     val subtotal: Double = 0.0,
     val total: Double = 0.0,
     val netPaid: Double = 0.0,
