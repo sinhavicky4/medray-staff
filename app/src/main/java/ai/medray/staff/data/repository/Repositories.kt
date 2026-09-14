@@ -640,7 +640,7 @@ class AppointmentRepository(private val context: Context) {
         }
     }
 
-    suspend fun checkIn(appointmentId: String, vitals: Vitals?): Result<Appointment> = withContext(Dispatchers.IO) {
+    suspend fun checkIn(appointmentId: String, vitals: Vitals?): Result<Appointment?> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         val req = UpdateVitalsRequest(
             vitalsBp = vitals?.vitalsBp,
@@ -654,7 +654,7 @@ class AppointmentRepository(private val context: Context) {
         try {
             val res = api.checkInAppointment(id = appointmentId, vitals = req, clinicId = clinicId)
             if (res.isSuccessful && res.body() != null) {
-                Result.success(res.body()!!)
+                Result.success(res.body()?.appointment)
             } else {
                 Result.failure(Exception(res.errorBody()?.string() ?: "Check-in failed"))
             }
@@ -671,6 +671,20 @@ class AppointmentRepository(private val context: Context) {
                 Result.success(res.body()!!)
             } else {
                 Result.failure(Exception("Cancellation failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun searchSymptoms(query: String): Result<List<String>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.searchTerminology(query = query, type = "symptom", limit = 10, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!.results.map { it.displayName })
+            } else {
+                Result.success(emptyList())
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -43,15 +43,19 @@ fun BillingScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf<String>("ALL") }
 
+    val totalBilled = invoices.filter { it.status != InvoiceStatus.CANCELLED }.sumOf { it.total }
+    val totalCollected = invoices.filter { it.status != InvoiceStatus.CANCELLED }.sumOf { it.netPaid }
+    val totalPending = invoices.filter { it.status != InvoiceStatus.CANCELLED }.sumOf { it.balanceDue }
     val paidCount = invoices.count { it.status == InvoiceStatus.PAID }
-    val pendingCount = invoices.count { it.status == InvoiceStatus.ISSUED || it.status == InvoiceStatus.PARTIALLY_PAID || it.status == InvoiceStatus.DRAFT }
-    val totalCollected = invoices.filter { it.status == InvoiceStatus.PAID }.sumOf { it.total }
-    val totalPending = invoices.filter { it.status != InvoiceStatus.PAID && it.status != InvoiceStatus.CANCELLED }.sumOf { it.total }
+    val partialCount = invoices.count { it.status == InvoiceStatus.PARTIALLY_PAID }
+    val pendingCount = invoices.count { it.status == InvoiceStatus.ISSUED || it.status == InvoiceStatus.DRAFT }
+    val collectionRate = if (totalBilled > 0) ((totalCollected / totalBilled) * 100).toInt() else 0
 
     val filtered = remember(invoices, searchQuery, selectedFilter) {
         invoices.filter { invoice ->
             val matchesFilter = when (selectedFilter) {
-                "PENDING" -> invoice.status != InvoiceStatus.PAID && invoice.status != InvoiceStatus.CANCELLED
+                "PENDING" -> invoice.status == InvoiceStatus.ISSUED || invoice.status == InvoiceStatus.DRAFT
+                "PARTIAL" -> invoice.status == InvoiceStatus.PARTIALLY_PAID
                 "PAID" -> invoice.status == InvoiceStatus.PAID
                 else -> true
             }
@@ -59,7 +63,8 @@ fun BillingScreen(
                 val q = searchQuery.trim().lowercase()
                 invoice.invoiceNumber.lowercase().contains(q) ||
                         invoice.patient?.fullName?.lowercase()?.contains(q) == true ||
-                        invoice.patient?.phone?.contains(q) == true
+                        invoice.patient?.phone?.contains(q) == true ||
+                        invoice.patient?.uhid?.lowercase()?.contains(q) == true
             }
             matchesFilter && matchesSearch
         }
@@ -120,9 +125,22 @@ fun BillingScreen(
                         .height(IntrinsicSize.Min)
                 ) {
                     StatCard(
-                        title = "Total Collected",
+                        title = "Total Billed",
+                        value = "₹${totalBilled.toInt()}",
+                        footer = "${invoices.size} total invoices",
+                        icon = Icons.Filled.ReceiptLong,
+                        iconBg = Color(0xFFEFF6FF),
+                        iconTint = MedRayBluePrimary,
+                        isSelected = selectedFilter == "ALL",
+                        onClick = { selectedFilter = "ALL" },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    StatCard(
+                        title = "Collected",
                         value = "₹${totalCollected.toInt()}",
-                        footer = "$paidCount settled invoices",
+                        footer = "$collectionRate% collection rate",
                         icon = Icons.Filled.Payments,
                         iconBg = Color(0xFFDCFCE7),
                         iconTint = Color(0xFF16A34A),
@@ -132,15 +150,35 @@ fun BillingScreen(
                             .weight(1f)
                             .fillMaxHeight()
                     )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
+                ) {
                     StatCard(
                         title = "Pending Due",
                         value = "₹${totalPending.toInt()}",
-                        footer = "$pendingCount unpaid bills",
+                        footer = "${pendingCount + partialCount} pending/partial",
                         icon = Icons.Filled.PendingActions,
                         iconBg = Color(0xFFFEF3C7),
                         iconTint = Color(0xFFD97706),
-                        isSelected = selectedFilter == "PENDING",
+                        isSelected = selectedFilter == "PENDING" || selectedFilter == "PARTIAL",
                         onClick = { selectedFilter = if (selectedFilter == "PENDING") "ALL" else "PENDING" },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    StatCard(
+                        title = "Settled Invoices",
+                        value = "$paidCount",
+                        footer = "Paid in full",
+                        icon = Icons.Filled.CheckCircle,
+                        iconBg = Color(0xFFF0FDF4),
+                        iconTint = Color(0xFF16A34A),
+                        isSelected = selectedFilter == "PAID",
+                        onClick = { selectedFilter = if (selectedFilter == "PAID") "ALL" else "PAID" },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -154,7 +192,7 @@ fun BillingScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search invoice #, patient, or phone…", fontSize = 13.sp, color = Slate400) },
+                placeholder = { Text("Search invoice #, patient, UHID or phone…", fontSize = 13.sp, color = Slate400) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MedRayBluePrimary, modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -189,16 +227,22 @@ fun BillingScreen(
                     onClick = { selectedFilter = "ALL" }
                 )
                 QuickFilterPill(
-                    label = "Pending ($pendingCount)",
-                    isSelected = selectedFilter == "PENDING",
-                    dotColor = Color(0xFFD97706),
-                    onClick = { selectedFilter = "PENDING" }
-                )
-                QuickFilterPill(
                     label = "Paid ($paidCount)",
                     isSelected = selectedFilter == "PAID",
                     dotColor = Color(0xFF16A34A),
                     onClick = { selectedFilter = "PAID" }
+                )
+                QuickFilterPill(
+                    label = "Partial ($partialCount)",
+                    isSelected = selectedFilter == "PARTIAL",
+                    dotColor = Color(0xFFD97706),
+                    onClick = { selectedFilter = "PARTIAL" }
+                )
+                QuickFilterPill(
+                    label = "Pending ($pendingCount)",
+                    isSelected = selectedFilter == "PENDING",
+                    dotColor = Color(0xFF2563EB),
+                    onClick = { selectedFilter = "PENDING" }
                 )
             }
         }
@@ -261,9 +305,33 @@ fun InvoiceCard(
 ) {
     val patient = invoice.patient
     val isPaid = invoice.status == InvoiceStatus.PAID
-    val statusBg = if (isPaid) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
-    val statusText = if (isPaid) Color(0xFF16A34A) else Color(0xFFD97706)
-    val statusDot = if (isPaid) Color(0xFF22C55E) else Color(0xFFF59E0B)
+    val isPartial = invoice.status == InvoiceStatus.PARTIALLY_PAID
+    val isCancelled = invoice.status == InvoiceStatus.CANCELLED
+
+    val statusBg = when {
+        isPaid -> Color(0xFFDCFCE7)
+        isPartial -> Color(0xFFFEF3C7)
+        isCancelled -> Color(0xFFFEE2E2)
+        else -> Color(0xFFEFF6FF)
+    }
+    val statusText = when {
+        isPaid -> Color(0xFF16A34A)
+        isPartial -> Color(0xFFD97706)
+        isCancelled -> Color(0xFFDC2626)
+        else -> Color(0xFF2563EB)
+    }
+    val statusDot = when {
+        isPaid -> Color(0xFF22C55E)
+        isPartial -> Color(0xFFF59E0B)
+        isCancelled -> Color(0xFFEF4444)
+        else -> Color(0xFF3B82F6)
+    }
+    val statusLabel = when {
+        isPaid -> "PAID"
+        isPartial -> "PARTIAL DUE"
+        isCancelled -> "CANCELLED"
+        else -> "PENDING"
+    }
 
     Surface(
         color = PureWhite,
@@ -311,7 +379,7 @@ fun InvoiceCard(
                         Box(modifier = Modifier.size(6.dp).background(statusDot, CircleShape))
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = if (isPaid) "PAID" else "PENDING DUE",
+                            text = statusLabel,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = statusText
@@ -370,16 +438,26 @@ fun InvoiceCard(
                         fontWeight = FontWeight.Bold,
                         color = if (isPaid) Color(0xFF16A34A) else MedRayBluePrimary
                     )
-                    Text(
-                        text = "OPD Fee",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Slate400
-                    )
+                    if (isPartial) {
+                        Text(
+                            text = "Due: ₹${invoice.balanceDue.toInt()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD97706)
+                        )
+                    } else {
+                        Text(
+                            text = if (isPaid) "Settled" else "Total Due",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Slate400
+                        )
+                    }
                 }
             }
 
             // Action: UPI QR Collection Button if unpaid
-            if (!isPaid) {
+            if (!isPaid && !isCancelled) {
+                val dueAmt = if (invoice.balanceDue > 0) invoice.balanceDue else invoice.total
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onCollectPayment,
@@ -391,12 +469,22 @@ fun InvoiceCard(
                     Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "Collect ₹${invoice.total.toInt()} via UPI QR",
+                        "Collect ₹${dueAmt.toInt()} via UPI QR",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            } else if (isPaid) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onClick,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("View Receipt & Share", fontSize = 12.sp, color = Slate700, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

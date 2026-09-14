@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.*
+import ai.medray.staff.ui.common.ChiefComplaintField
 import ai.medray.staff.ui.common.DynamicUpiQrDialog
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QueueStatusBadge
@@ -164,7 +165,7 @@ fun ReceptionHomeScreen(
                 ) {
                     Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
-                    Text("+ Walk-In", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("+ Add to Queue", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -706,7 +707,8 @@ fun AddToQueueForPatientDialog(
     patient: Patient,
     doctors: List<DoctorSummary>,
     onDismiss: () -> Unit,
-    onAddToQueue: (doctorId: String, complaint: String, vitals: Vitals?) -> Unit
+    onAddToQueue: (doctorId: String, complaint: String, vitals: Vitals?) -> Unit,
+    onSearchSymptoms: (suspend (String) -> List<String>)? = null
 ) {
     var selectedDoctorId by remember { mutableStateOf(doctors.firstOrNull()?.id ?: "") }
     var chiefComplaint by remember { mutableStateOf("") }
@@ -847,12 +849,13 @@ fun AddToQueueForPatientDialog(
                     }
 
                     // Chief Complaint
-                    OutlinedTextField(
+                    ChiefComplaintField(
                         value = chiefComplaint,
                         onValueChange = { chiefComplaint = it },
-                        label = { Text("Chief Complaint") },
-                        placeholder = { Text("e.g. Routine Consultation, Fever, Follow-up") },
-                        shape = RoundedCornerShape(10.dp),
+                        label = "Chief Complaint",
+                        placeholder = "Search symptom or complaint (e.g. Fever, Routine Consultation)…",
+                        onSearchSymptoms = onSearchSymptoms,
+                        showQuickTags = true,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -980,7 +983,8 @@ fun WalkInRegisterDialog(
     existingPatients: List<Patient> = emptyList(),
     onDismiss: () -> Unit,
     onRegister: (patientName: String, phone: String, doctorId: String, complaint: String, age: Int?, gender: String) -> Unit,
-    onAddExisting: (patient: Patient, doctorId: String, complaint: String) -> Unit = { _, _, _ -> }
+    onAddExisting: (patient: Patient, doctorId: String, complaint: String) -> Unit = { _, _, _ -> },
+    onSearchSymptoms: (suspend (String) -> List<String>)? = null
 ) {
     var isExistingPatientMode by remember { mutableStateOf(false) }
     var selectedExistingPatient by remember { mutableStateOf<Patient?>(null) }
@@ -1200,12 +1204,13 @@ fun WalkInRegisterDialog(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
+                        ChiefComplaintField(
                             value = chiefComplaint,
                             onValueChange = { chiefComplaint = it },
-                            label = { Text("Chief Complaint") },
-                            placeholder = { Text("e.g. Follow-up, Fever, Routine Consultation") },
-                            shape = RoundedCornerShape(10.dp),
+                            label = "Chief Complaint",
+                            placeholder = "Search symptom or complaint (e.g. Follow-up, Fever)…",
+                            onSearchSymptoms = onSearchSymptoms,
+                            showQuickTags = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1299,12 +1304,13 @@ fun WalkInRegisterDialog(
                             }
                         }
 
-                        OutlinedTextField(
+                        ChiefComplaintField(
                             value = chiefComplaint,
                             onValueChange = { chiefComplaint = it },
-                            label = { Text("Chief Complaint") },
-                            placeholder = { Text("e.g. Fever, headache for 2 days") },
-                            shape = RoundedCornerShape(10.dp),
+                            label = "Chief Complaint",
+                            placeholder = "Search symptom or complaint (e.g. Fever, cough for 2 days)…",
+                            onSearchSymptoms = onSearchSymptoms,
+                            showQuickTags = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )

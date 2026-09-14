@@ -795,7 +795,7 @@ fun StaffAppNavHost(
                                 chiefComplaint = i["chiefComplaint"] as? String ?: ""
                             )
                         )
-                        res.map { "✅ Appointment booked for ${it.patient.fullName}." }
+                        res.map { "✅ Appointment booked for ${it.patient?.fullName ?: "Patient"}." }
                     }
                     "propose_admit_patient" -> {
                         val patientId = i["patientId"] as? String ?: ""
@@ -1527,10 +1527,15 @@ fun StaffAppNavHost(
                         },
                         onCheckInClick = { appt ->
                             coroutineScope.launch {
+                                android.util.Log.d("MedRayCheckIn", "Attempting checkIn for appointment ${appt.id}")
                                 val res = appointmentRepo.checkIn(appt.id, null)
                                 if (res.isSuccess) {
-                                    Toast.makeText(context, "Patient Checked In!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Patient Marked as Arrived!", Toast.LENGTH_SHORT).show()
                                     refreshAllData()
+                                } else {
+                                    val err = res.exceptionOrNull()?.message ?: "Check-in failed"
+                                    android.util.Log.e("MedRayCheckIn", "Check-in error: $err")
+                                    Toast.makeText(context, "Check-in failed: $err", Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
@@ -1769,6 +1774,9 @@ fun StaffAppNavHost(
                         Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
+            },
+            onSearchSymptoms = { q ->
+                appointmentRepo.searchSymptoms(q).getOrDefault(emptyList())
             }
         )
     }
@@ -1799,6 +1807,9 @@ fun StaffAppNavHost(
                         Toast.makeText(context, "Failed to add: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
+            },
+            onSearchSymptoms = { q ->
+                appointmentRepo.searchSymptoms(q).getOrDefault(emptyList())
             }
         )
     }
@@ -1812,6 +1823,9 @@ fun StaffAppNavHost(
             onDismiss = {
                 showBookAppointmentDialog = false
                 preselectedPatientForAppointment = null
+            },
+            onSearchSymptoms = { q ->
+                appointmentRepo.searchSymptoms(q).getOrDefault(emptyList())
             },
             onBookExisting = { patient, doctorId, scheduledAtIso, durationMinutes, chiefComplaint, visitType ->
                 bookAppointmentBusy = true

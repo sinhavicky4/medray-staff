@@ -621,7 +621,7 @@ interface StaffApiService {
         @Path("id") id: String,
         @Body vitals: UpdateVitalsRequest,
         @Query("clinicId") clinicId: String? = null
-    ): Response<Appointment>
+    ): Response<CheckInAppointmentResponse>
 
     @POST("appointments/{id}/no-show")
     suspend fun markAppointmentNoShow(
@@ -635,6 +635,14 @@ interface StaffApiService {
         @Body req: CancelAppointmentRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<Appointment>
+
+    @GET("terminology/search")
+    suspend fun searchTerminology(
+        @Query("q") query: String,
+        @Query("type") type: String = "symptom",
+        @Query("limit") limit: Int = 10,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<TerminologyResponse>
 
     // Self Check-Ins
     @GET("self-checkins")

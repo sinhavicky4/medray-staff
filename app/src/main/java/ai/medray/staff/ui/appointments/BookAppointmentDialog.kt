@@ -31,6 +31,7 @@ import androidx.compose.ui.window.DialogProperties
 import ai.medray.staff.data.model.DoctorSummary
 import ai.medray.staff.data.model.Patient
 import ai.medray.staff.data.model.formatToIsoUtc
+import ai.medray.staff.ui.common.ChiefComplaintField
 import ai.medray.staff.ui.theme.*
 import java.time.Instant
 import java.time.LocalDate
@@ -38,6 +39,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private val TIME_SLOT_OPTIONS = listOf(
     Pair(9, 0), Pair(9, 30),
@@ -51,14 +53,14 @@ private val TIME_SLOT_OPTIONS = listOf(
 )
 
 private val COMMON_COMPLAINTS = listOf(
-    "General Checkup",
-    "Routine Follow-up",
-    "Fever & Body Ache",
+    "Fever",
     "Cough & Cold",
+    "Headache",
+    "Body Ache",
     "BP Review",
-    "Diabetes Management",
-    "Skin Rash",
-    "Abdominal Pain"
+    "Diabetes Review",
+    "Gastric / Stomach",
+    "Routine Checkup"
 )
 
 private val VISIT_TYPES = listOf(
@@ -75,6 +77,7 @@ fun BookAppointmentDialog(
     initialPatient: Patient? = null,
     isBusy: Boolean = false,
     onDismiss: () -> Unit,
+    onSearchSymptoms: (suspend (String) -> List<String>)? = null,
     onBookExisting: (
         patient: Patient,
         doctorId: String,
@@ -666,50 +669,37 @@ fun BookAppointmentDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 7. Chief Complaint
-                Text(
-                    text = "Chief Complaint / Reason *",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate700
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Quick Chips
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                // 7. Chief Complaint / Reason with Backend Search
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(COMMON_COMPLAINTS) { comp ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Slate100)
-                                .clickable {
-                                    chiefComplaint = if (chiefComplaint.isBlank()) comp else "$chiefComplaint, $comp"
-                                    validationError = null
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "+ $comp",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Slate700
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Chief Complaint / Reason *",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate700
+                    )
+                    Text(
+                        text = "Auto-searches SNOMED CT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MedRayBluePrimary
+                    )
                 }
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
+                ChiefComplaintField(
                     value = chiefComplaint,
-                    onValueChange = { chiefComplaint = it; validationError = null },
-                    placeholder = { Text("e.g. Fever for 2 days, mild cough, routine review...", fontSize = 14.sp) },
-                    singleLine = false,
-                    maxLines = 3,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = {
+                        chiefComplaint = it
+                        validationError = null
+                    },
+                    placeholder = "Search symptom or type complaint (e.g. Fever, Cough, Chest pain)…",
+                    label = null,
+                    quickComplaints = COMMON_COMPLAINTS,
+                    onSearchSymptoms = onSearchSymptoms,
+                    showQuickTags = true
                 )
 
                 // Error Banner

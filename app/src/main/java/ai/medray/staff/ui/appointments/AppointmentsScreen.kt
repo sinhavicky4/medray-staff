@@ -175,9 +175,9 @@ fun AppointmentsScreen(
                             .fillMaxHeight()
                     )
                     StatCard(
-                        title = "Checked In",
+                        title = "Arrived",
                         value = "$checkedInCount",
-                        footer = "In clinic queue",
+                        footer = "In doctor queue",
                         icon = Icons.Filled.CheckCircleOutline,
                         iconBg = Color(0xFFDCFCE7),
                         iconTint = Color(0xFF16A34A),
@@ -277,7 +277,7 @@ fun AppointmentsScreen(
                     onClick = { selectedStatusFilter = AppointmentStatus.SCHEDULED }
                 )
                 QuickFilterPill(
-                    label = "Checked In ($checkedInCount)",
+                    label = "Arrived ($checkedInCount)",
                     isSelected = selectedStatusFilter == AppointmentStatus.CHECKED_IN,
                     dotColor = Color(0xFF16A34A),
                     onClick = { selectedStatusFilter = AppointmentStatus.CHECKED_IN }
@@ -424,7 +424,7 @@ fun AppointmentCard(
                         Box(modifier = Modifier.size(6.dp).background(statusDot, CircleShape))
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = appointment.status.name.replace("_", " "),
+                            text = if (appointment.status == AppointmentStatus.CHECKED_IN) "ARRIVED" else appointment.status.name.replace("_", " "),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = statusText
@@ -499,7 +499,7 @@ fun AppointmentCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Dr. ${appointment.doctor.fullName}",
+                                text = "Dr. ${appointment.doctor?.fullName ?: "Doctor"}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MedRayBlueDark,
@@ -517,23 +517,21 @@ fun AppointmentCard(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Button(
                         onClick = onCheckIn,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
+                            .height(42.dp)
                     ) {
                         Icon(Icons.Filled.HowToReg, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            "Check In to Queue",
+                            "Mark as Arrived",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -546,10 +544,10 @@ fun AppointmentCard(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         modifier = Modifier
                             .weight(0.8f)
-                            .fillMaxHeight()
+                            .height(42.dp)
                     ) {
                         Text(
                             "Cancel",

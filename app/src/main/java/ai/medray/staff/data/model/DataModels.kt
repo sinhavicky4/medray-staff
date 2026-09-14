@@ -306,12 +306,30 @@ data class Appointment(
     val doctorId: String,
     val scheduledAt: String,
     val durationMinutes: Int = 15,
-    val chiefComplaint: String,
+    val chiefComplaint: String? = null,
     val visitType: String = "FIRST_VISIT",
     val status: AppointmentStatus = AppointmentStatus.SCHEDULED,
     val cancelReason: String? = null,
-    val patient: Patient,
-    val doctor: DoctorSummary
+    val patient: Patient? = null,
+    val doctor: DoctorSummary? = null
+) : Serializable
+
+data class CheckInAppointmentResponse(
+    val appointment: Appointment? = null,
+    val queueEntry: QueueEntry? = null
+) : Serializable
+
+data class TerminologyItem(
+    val id: String,
+    val displayName: String,
+    val matchedTerm: String? = null,
+    val semanticType: String? = null,
+    val category: String? = null,
+    val code: String? = null
+) : Serializable
+
+data class TerminologyResponse(
+    val results: List<TerminologyItem> = emptyList()
 ) : Serializable
 
 data class InvoiceLineItem(
