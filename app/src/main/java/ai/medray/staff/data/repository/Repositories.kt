@@ -606,6 +606,39 @@ class PatientRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun issueLabOrder(patientId: String, req: LabOrderRequest): Result<LabOrderResponse> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.issueLabOrder(patientId, req)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to issue lab order")
+                } catch (_: Exception) {
+                    err ?: "Failed to issue lab order"
+                }
+                Result.failure(Exception(message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun searchInvestigations(query: String): Result<List<TerminologyItem>> = withContext(Dispatchers.IO) {
+        val clinicId = ApiClient.getCookieJar(context).getActiveClinicId()
+        try {
+            val res = api.searchTerminology(query = query, type = "investigation", limit = 20, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!.results)
+            } else {
+                Result.success(emptyList())
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 class AppointmentRepository(private val context: Context) {
@@ -1351,6 +1384,34 @@ class IpdRepository(private val context: Context) {
         }
     }
 
+    suspend fun listAllBeds(): Result<List<IpdBed>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdBeds(status = null, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to load all beds"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateBedStatus(bedId: String, status: String): Result<IpdBed> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateBedStatus(id = bedId, req = UpdateBedStatusRequest(status = status), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to update bed status"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun createAdmission(req: CreateIpdAdmissionRequest): Result<IpdAdmission> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         try {
@@ -1483,6 +1544,48 @@ class IpdRepository(private val context: Context) {
                     org.json.JSONObject(err ?: "").optString("error", "Couldn't finalize discharge")
                 } catch (_: Exception) {
                     err ?: "Couldn't finalize discharge"
+                }
+                Result.failure(Exception(message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAdmissionInvoice(patientId: String, admissionId: String): Result<Invoice?> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listInvoices(patientId = patientId, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                val invoices = res.body()!!
+                val match = invoices.firstOrNull { it.admissionId == admissionId }
+                    ?: invoices.firstOrNull { it.status == InvoiceStatus.ISSUED || it.status == InvoiceStatus.PARTIALLY_PAID }
+                Result.success(match)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recordInpatientPayment(
+        invoiceId: String,
+        amount: Double,
+        method: PaymentMethod,
+        note: String? = null
+    ): Result<Invoice> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.recordPayment(id = invoiceId, req = RecordPaymentRequest(amount = amount, method = method, note = note), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to record payment")
+                } catch (_: Exception) {
+                    err ?: "Failed to record payment"
                 }
                 Result.failure(Exception(message))
             }

@@ -10,13 +10,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Payment
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.model.DoctorSummary
+import ai.medray.staff.data.model.Invoice
+import ai.medray.staff.data.model.PaymentMethod
 import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.data.network.*
 import ai.medray.staff.ui.common.QuickFilterPill
@@ -39,6 +44,7 @@ data class IpdChartData(
     val investigations: List<InvestigationOrder> = emptyList(),
     val timeline: List<IpdTimelineEvent> = emptyList(),
     val dischargeChecklist: List<IpdDischargeChecklistItem> = emptyList(),
+    val invoice: Invoice? = null,
     val isLoading: Boolean = false,
     // Named sections whose own fetch failed independently of the others
     // (e.g. a mid-load network blip during just the Medications call) —
@@ -77,6 +83,8 @@ fun IpdPatientChartScreen(
     onAssignDoctor: ((doctorId: String, reason: String?) -> Unit)? = null,
     onFinalizeDischarge: (() -> Unit)? = null,
     onTransferBedClick: (() -> Unit)? = null,
+    onCollectInpatientPayment: ((Invoice) -> Unit)? = null,
+    onViewInvoice: ((Invoice) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -185,7 +193,14 @@ fun IpdPatientChartScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-                        DischargeChecklistCard(chart.dischargeChecklist, onToggleChecklistItem, onFinalizeDischarge)
+                        DischargeChecklistCard(
+                            items = chart.dischargeChecklist,
+                            invoice = chart.invoice,
+                            onToggle = onToggleChecklistItem,
+                            onFinalize = onFinalizeDischarge,
+                            onCollectPayment = onCollectInpatientPayment,
+                            onViewInvoice = onViewInvoice
+                        )
                     } else if (admission.dischargedAt != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(color = Slate100, shape = RoundedCornerShape(8.dp)) {
@@ -329,72 +344,215 @@ private fun checklistItemLabel(itemType: IpdDischargeChecklistItemType?): String
 @Composable
 private fun DischargeChecklistCard(
     items: List<IpdDischargeChecklistItem>,
+    invoice: Invoice? = null,
     onToggle: (String, Boolean) -> Unit,
-    onFinalize: (() -> Unit)? = null
+    onFinalize: (() -> Unit)? = null,
+    onCollectPayment: ((Invoice) -> Unit)? = null,
+    onViewInvoice: ((Invoice) -> Unit)? = null
 ) {
     if (items.isEmpty()) return
     val doneCount = items.count { it.completed }
     val allCompleted = items.isNotEmpty() && doneCount == items.size
+    val hasOutstandingBalance = invoice != null && invoice.balanceDue > 0.0
+    val billSettledItem = items.firstOrNull { it.itemType == IpdDischargeChecklistItemType.BILL_SETTLED }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    Surface(color = PureWhite, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // 1. Inpatient Financial Status Banner
+        if (invoice != null) {
+            val isSettled = invoice.balanceDue <= 0.0
+            Surface(
+                color = if (isSettled) StatusSuccessBg else StatusWarningBg,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, if (isSettled) StatusSuccessBorder else StatusWarningBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "Discharge Checklist ($doneCount/${items.size})",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate900
-                )
-                if (allCompleted) {
-                    Surface(color = StatusSuccessBg, shape = RoundedCornerShape(6.dp)) {
-                        Text(
-                            "Ready to Finalize",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = StatusSuccessText,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                if (isSettled) Icons.Filled.CheckCircle else Icons.Outlined.Payment,
+                                contentDescription = null,
+                                tint = if (isSettled) StatusSuccessText else StatusWarningText,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    if (isSettled) "Inpatient Bill Settled (₹0.00 Due)"
+                                    else "Inpatient Balance Due: ₹${"%.2f".format(invoice.balanceDue)}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSettled) StatusSuccessText else StatusWarningText
+                                )
+                                Text(
+                                    if (isSettled) "Total: ₹${"%.2f".format(invoice.total)} · Paid in full"
+                                    else "Total: ₹${"%.2f".format(invoice.total)} · Net Paid: ₹${"%.2f".format(invoice.netPaid)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Slate600
+                                )
+                                Text(
+                                    "GST (CGST 0% + SGST 0%): ₹0.00 (Healthcare Exempt)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Slate500
+                                )
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (!isSettled && onCollectPayment != null) {
+                                Button(
+                                    onClick = { onCollectPayment(invoice) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MedRayTealDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Payment, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Collect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (onViewInvoice != null) {
+                                OutlinedButton(
+                                    onClick = { onViewInvoice(invoice) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    border = BorderStroke(1.dp, Slate300)
+                                ) {
+                                    Text("View Bill", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                                }
+                            }
+                        }
+                    }
+
+                    if (isSettled && billSettledItem != null && !billSettledItem.completed) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PureWhite, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("Bill is settled! Tap to approve clearance:", style = MaterialTheme.typography.bodySmall, color = Slate700)
+                            TextButton(
+                                onClick = { onToggle(billSettledItem.id, true) },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("Approve Clearance", fontWeight = FontWeight.Bold, color = MedRayTealDark, fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            items.forEach { item ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Checkbox(checked = item.completed, onCheckedChange = { checked -> onToggle(item.id, checked) })
-                    Text(
-                        checklistItemLabel(item.itemType),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (item.completed) Slate500 else Slate800
-                    )
-                }
-            }
+        }
 
-            if (onFinalize != null) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Button(
-                    onClick = { showConfirmDialog = true },
-                    enabled = allCompleted,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (allCompleted) StatusErrorText else Slate300,
-                        contentColor = PureWhite,
-                        disabledContainerColor = Slate200,
-                        disabledContentColor = Slate400
-                    ),
-                    shape = RoundedCornerShape(10.dp),
+        // 2. Checklist Card
+        Surface(color = PureWhite, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        if (allCompleted) "Finalize Discharge & Release Bed" else "Complete all ${items.size} items to finalize",
+                        "Discharge Checklist ($doneCount/${items.size})",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
                     )
+                    if (allCompleted) {
+                        Surface(color = StatusSuccessBg, shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                "Ready to Finalize",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = StatusSuccessText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                items.forEach { item ->
+                    val isBilling = item.itemType == IpdDischargeChecklistItemType.BILL_SETTLED
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (isBilling) Modifier.background(Slate50, RoundedCornerShape(8.dp)).padding(horizontal = 4.dp, vertical = 2.dp) else Modifier)
+                    ) {
+                        Checkbox(checked = item.completed, onCheckedChange = { checked -> onToggle(item.id, checked) })
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    checklistItemLabel(item.itemType),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (isBilling) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (item.completed) Slate500 else Slate800
+                                )
+                                if (isBilling) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        color = if (item.completed) StatusSuccessBg else StatusWarningBg,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            if (item.completed) "Cleared" else "Financial Gate",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (item.completed) StatusSuccessText else StatusWarningText,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            if (isBilling && hasOutstandingBalance && !item.completed) {
+                                Text(
+                                    "Outstanding balance ₹${"%.2f".format(invoice?.balanceDue ?: 0.0)} must be settled before discharge clearance",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StatusErrorText
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (onFinalize != null) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(
+                        onClick = { showConfirmDialog = true },
+                        enabled = allCompleted,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (allCompleted) StatusErrorText else Slate300,
+                            contentColor = PureWhite,
+                            disabledContainerColor = Slate200,
+                            disabledContentColor = Slate400
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (allCompleted) "Finalize Discharge & Release Bed" else "Complete all ${items.size} items to finalize",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (hasOutstandingBalance) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Notice: This clinic enforces zero-balance discharge. Collect balance above before finalizing.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = StatusWarningText,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
                 }
             }
         }

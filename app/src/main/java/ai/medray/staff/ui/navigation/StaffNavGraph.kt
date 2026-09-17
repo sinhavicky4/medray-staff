@@ -54,6 +54,7 @@ import ai.medray.staff.ui.nurse.FastVitalsEntryDialog
 import ai.medray.staff.ui.nurse.NurseHomeScreen
 import ai.medray.staff.ui.patients.PatientsScreen
 import ai.medray.staff.ui.patients.PatientDetailsDialog
+import ai.medray.staff.ui.patients.OrderLabTestDialog
 import ai.medray.staff.ui.profile.ProfileScreen
 import ai.medray.staff.ui.reception.AddToQueueForPatientDialog
 import ai.medray.staff.ui.reception.ReceptionHomeScreen
@@ -502,6 +503,8 @@ fun StaffAppNavHost(
     var showBedTransferDialog by remember { mutableStateOf(false) }
     var ipdAvailableBeds by remember { mutableStateOf<List<IpdBed>>(emptyList()) }
     var ipdAvailableBedsLoading by remember { mutableStateOf(false) }
+    var ipdAllBeds by remember { mutableStateOf<List<IpdBed>>(emptyList()) }
+    var ipdAllBedsLoading by remember { mutableStateOf(false) }
     var ipdAdmissionBusy by remember { mutableStateOf(false) }
     var ipdAdmissionError by remember { mutableStateOf<String?>(null) }
     val canCreateIpdAdmission = remember(currentUser) {
@@ -558,6 +561,12 @@ fun StaffAppNavHost(
                 // backend only seeds rows at that point (spec §17's checklist),
                 // same "nothing to show yet" shape as every other empty section.
                 val checklistDeferred = async { loadSection("Discharge Checklist") { ipdRepo.listDischargeChecklist(admissionId) } }
+                val invoiceDeferred = async {
+                    val patientId = admissionRes.getOrNull()?.patientId
+                    if (patientId != null) {
+                        ipdRepo.getAdmissionInvoice(patientId, admissionId).getOrNull()
+                    } else null
+                }
                 ipdChart = IpdChartData(
                     admission = admissionRes.getOrNull(),
                     vitals = vitalsDeferred.await(),
@@ -567,6 +576,7 @@ fun StaffAppNavHost(
                     investigations = investigationsDeferred.await(),
                     timeline = timelineDeferred.await(),
                     dischargeChecklist = checklistDeferred.await(),
+                    invoice = invoiceDeferred.await(),
                     isLoading = false,
                     failedSections = failed.toSet(),
                 )
@@ -603,12 +613,18 @@ fun StaffAppNavHost(
     var patientDetailDocumentsLoading by remember { mutableStateOf(false) }
     var patientDetailAdmissions by remember { mutableStateOf<List<IpdAdmission>>(emptyList()) }
     var patientDetailAdmissionsLoading by remember { mutableStateOf(false) }
+    var patientDetailInvoices by remember { mutableStateOf<List<Invoice>>(emptyList()) }
+    var patientDetailInvoicesLoading by remember { mutableStateOf(false) }
     var showUploadDocumentDialog by remember { mutableStateOf(false) }
     var uploadDocTargetPatient by remember { mutableStateOf<Patient?>(null) }
     var uploadDocTargetVisitId by remember { mutableStateOf<String?>(null) }
     var uploadDocInitialKind by remember { mutableStateOf("REPORT") }
     var uploadDocBusy by remember { mutableStateOf(false) }
     var uploadDocError by remember { mutableStateOf<String?>(null) }
+    var showOrderLabTestDialog by remember { mutableStateOf(false) }
+    var orderLabTargetPatient by remember { mutableStateOf<Patient?>(null) }
+    var orderLabTestSubmitting by remember { mutableStateOf(false) }
+    var orderLabTestError by remember { mutableStateOf<String?>(null) }
 
     // Chat Assistant state — hydrated from the server-persisted thread the
     // first time Screen.Chat is visited each session (same pattern as web's
@@ -652,13 +668,22 @@ fun StaffAppNavHost(
     // aggregate endpoint for this in Phase 3.
     suspend fun refreshIpdWard() {
         ipdWardLoading = true
+        ipdAllBedsLoading = true
         try {
-            ipdRepo.refreshAdmissions().fold(
-                onSuccess = { admissions ->
-                    ipdWardError = null
-                    ipdAdmissions = admissions
-                    ipdTasks = coroutineScope {
-                        admissions.map { admission ->
+            coroutineScope {
+                val bedsDeferred = async { ipdRepo.listAllBeds() }
+                val admissionsDeferred = async { ipdRepo.refreshAdmissions() }
+
+                val bedsRes = bedsDeferred.await()
+                if (bedsRes.isSuccess) {
+                    ipdAllBeds = bedsRes.getOrDefault(emptyList())
+                }
+
+                admissionsDeferred.await().fold(
+                    onSuccess = { admissions ->
+                        ipdWardError = null
+                        ipdAdmissions = admissions
+                        ipdTasks = admissions.map { admission ->
                             async {
                                 val meds = ipdRepo.listMedicationOrders(admission.id).getOrDefault(emptyList())
                                     .flatMap { it.administrations }
@@ -672,13 +697,14 @@ fun StaffAppNavHost(
                                 )
                             }
                         }.awaitAll().flatten()
-                    }
-                },
-                onFailure = { e -> ipdWardError = e.message ?: "Couldn't load ward patients" },
-            )
+                    },
+                    onFailure = { e -> ipdWardError = e.message ?: "Couldn't load ward patients" },
+                )
+            }
             ipdOutboxStatus = ipdRepo.getOutboxSyncStatus()
         } finally {
             ipdWardLoading = false
+            ipdAllBedsLoading = false
         }
     }
 
@@ -1310,6 +1336,8 @@ fun StaffAppNavHost(
                             patientDetailDocumentsLoading = true
                             patientDetailAdmissions = emptyList()
                             patientDetailAdmissionsLoading = true
+                            patientDetailInvoices = emptyList()
+                            patientDetailInvoicesLoading = true
                             coroutineScope.launch {
                                 val res = visitRepo.getPatientVisits(patient.id)
                                 patientDetailVisits = res.getOrDefault(emptyList())
@@ -1324,6 +1352,11 @@ fun StaffAppNavHost(
                                 val res = ipdRepo.listAdmissionsByPatient(patient.id)
                                 patientDetailAdmissions = res.getOrDefault(emptyList())
                                 patientDetailAdmissionsLoading = false
+                            }
+                            coroutineScope.launch {
+                                val res = billingRepo.listInvoices(patientId = patient.id)
+                                patientDetailInvoices = res.getOrDefault(emptyList())
+                                patientDetailInvoicesLoading = false
                             }
                         },
                         onRegisterPatientClick = { showWalkInDialog = true },
@@ -1347,12 +1380,26 @@ fun StaffAppNavHost(
                         outboxStatus = ipdOutboxStatus,
                         errorMessage = ipdWardError,
                         isLoading = ipdWardLoading,
+                        beds = ipdAllBeds,
+                        bedsLoading = ipdAllBedsLoading,
                         onRefresh = { coroutineScope.launch { refreshIpdWard() } },
                         onPatientsClick = { navController.navigate(Screen.IpdPatientList.route) },
                         onTaskListClick = { navController.navigate(Screen.IpdTaskList.route) },
                         onPatientClick = { admission ->
                             ipdChartTargetAdmissionId = admission.id
                             navController.navigate(Screen.IpdPatientChart.route)
+                        },
+                        onUpdateBedStatus = { bedId, nextStatus ->
+                            coroutineScope.launch {
+                                val res = ipdRepo.updateBedStatus(bedId, nextStatus)
+                                if (res.isSuccess) {
+                                    Toast.makeText(context, "Bed updated to ${nextStatus.replace('_', ' ')}", Toast.LENGTH_SHORT).show()
+                                    refreshIpdWard()
+                                    loadAvailableBeds()
+                                } else {
+                                    Toast.makeText(context, res.exceptionOrNull()?.message ?: "Failed to update bed status", Toast.LENGTH_LONG).show()
+                                }
+                            }
                         },
                         onNewAdmissionClick = if (canCreateIpdAdmission) {
                             {
@@ -1510,6 +1557,23 @@ fun StaffAppNavHost(
                             onTransferBedClick = {
                                 showBedTransferDialog = true
                                 coroutineScope.launch { loadAvailableBeds() }
+                            },
+                            onCollectInpatientPayment = { invoice ->
+                                val configuredUpiId = currentUser?.clinic?.upiId?.ifBlank { null } ?: currentUser?.clinic?.upiVpa?.ifBlank { null }
+                                if (configuredUpiId == null) {
+                                    Toast.makeText(context, "This clinic hasn't set up a UPI ID yet. Ask your Clinic Admin to add one in Clinic Settings on the web portal.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    upiModalData = UpiPaymentModalData(
+                                        payeeVpa = configuredUpiId,
+                                        payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
+                                        amount = invoice.balanceDue,
+                                        invoiceNumber = invoice.invoiceNumber,
+                                        invoiceId = invoice.id
+                                    )
+                                }
+                            },
+                            onViewInvoice = { inv ->
+                                invoiceDetailTarget = inv
                             }
                         )
                     }
@@ -1930,6 +1994,16 @@ fun StaffAppNavHost(
                                 upiModalData = null
                                 if (paymentRes.isSuccess) {
                                     refreshAllData()
+                                    ipdChartTargetAdmissionId?.let { admId ->
+                                        loadIpdChartData(admId)
+                                    }
+                                    patientDetailTarget?.let { patient ->
+                                        val res = billingRepo.listInvoices(patientId = patient.id)
+                                        patientDetailInvoices = res.getOrDefault(emptyList())
+                                        if (invoiceDetailTarget?.id == data.invoiceId) {
+                                            invoiceDetailTarget = patientDetailInvoices.find { it.id == data.invoiceId }
+                                        }
+                                    }
                                     Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
                                 } else {
                                     Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
@@ -2052,11 +2126,30 @@ fun StaffAppNavHost(
             documentsLoading = patientDetailDocumentsLoading,
             admissions = patientDetailAdmissions,
             admissionsLoading = patientDetailAdmissionsLoading,
+            invoices = patientDetailInvoices,
+            invoicesLoading = patientDetailInvoicesLoading,
             onDismiss = { patientDetailTarget = null },
             onOpenIpdAdmission = { admissionId ->
                 patientDetailTarget = null
                 ipdChartTargetAdmissionId = admissionId
                 navController.navigate(Screen.IpdPatientChart.route)
+            },
+            onCollectPaymentClick = { inv ->
+                val configuredUpiId = currentUser?.clinic?.upiId?.ifBlank { null } ?: currentUser?.clinic?.upiVpa?.ifBlank { null }
+                if (configuredUpiId == null) {
+                    Toast.makeText(context, "This clinic hasn't set up a UPI ID yet. Ask your Clinic Admin to add one in Clinic Settings on the web portal.", Toast.LENGTH_LONG).show()
+                } else {
+                    upiModalData = UpiPaymentModalData(
+                        payeeVpa = configuredUpiId,
+                        payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
+                        amount = inv.balanceDue,
+                        invoiceNumber = inv.invoiceNumber,
+                        invoiceId = inv.id
+                    )
+                }
+            },
+            onViewInvoiceClick = { inv ->
+                invoiceDetailTarget = inv
             },
             onAddToQueueClick = {
                 patientDetailTarget = null
@@ -2067,6 +2160,11 @@ fun StaffAppNavHost(
                 patientDetailTarget = null
                 preselectedPatientForAppointment = patient
                 showBookAppointmentDialog = true
+            },
+            onOrderLabTestClick = {
+                orderLabTargetPatient = patient
+                orderLabTestError = null
+                showOrderLabTestDialog = true
             },
             onUploadDocumentClick = {
                 uploadDocTargetPatient = patient
@@ -2093,10 +2191,46 @@ fun StaffAppNavHost(
                     val res = patientRepo.deleteDocument(doc.id)
                     if (res.isSuccess) {
                         patientDetailDocuments = patientDetailDocuments.filter { it.id != doc.id }
-                        Toast.makeText(context, "Document deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Document removed", Toast.LENGTH_SHORT).show()
                     } else {
                         val err = res.exceptionOrNull()?.message ?: "Failed to delete document"
                         Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showOrderLabTestDialog && orderLabTargetPatient != null) {
+        val targetPatient = orderLabTargetPatient!!
+        OrderLabTestDialog(
+            patient = targetPatient,
+            isSubmitting = orderLabTestSubmitting,
+            errorMessage = orderLabTestError,
+            onDismiss = {
+                if (!orderLabTestSubmitting) {
+                    showOrderLabTestDialog = false
+                    orderLabTestError = null
+                }
+            },
+            onSearchInvestigations = { query ->
+                patientRepo.searchInvestigations(query).getOrDefault(emptyList())
+            },
+            onSubmitOrder = { req ->
+                orderLabTestSubmitting = true
+                orderLabTestError = null
+                coroutineScope.launch {
+                    val res = patientRepo.issueLabOrder(targetPatient.id, req)
+                    orderLabTestSubmitting = false
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "Diagnostic Lab Order Requisition Generated!", Toast.LENGTH_SHORT).show()
+                        showOrderLabTestDialog = false
+                        val docsRes = patientRepo.listDocuments(targetPatient.id)
+                        if (docsRes.isSuccess) {
+                            patientDetailDocuments = docsRes.getOrDefault(emptyList())
+                        }
+                    } else {
+                        orderLabTestError = res.exceptionOrNull()?.message ?: "Failed to issue lab order"
                     }
                 }
             }

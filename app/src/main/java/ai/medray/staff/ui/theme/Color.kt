@@ -14,6 +14,7 @@ val MedRayTealPrimary = Color(0xFF0D9488)
 val MedRayTealDark = Color(0xFF0F766E)
 val MedRayTealLight = Color(0xFFCCFBF1)
 val MedRayTealContainer = Color(0xFFF0FDFA)
+val MedRayTealBorder = Color(0xFF99F6E4)
 
 // Neutral Slate Palette
 val Slate900 = Color(0xFF0F172A)

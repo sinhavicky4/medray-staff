@@ -21,19 +21,25 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.medray.staff.data.network.AdmissionStatus
 import ai.medray.staff.data.network.IpdAdmission
+import ai.medray.staff.data.network.IpdBed
 import ai.medray.staff.data.repository.IpdOutboxSyncStatus
 import ai.medray.staff.domain.IpdTaskListItem
 import ai.medray.staff.domain.IpdTaskListDerivation
 import ai.medray.staff.domain.IpdTaskType
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
+import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
 import ai.medray.staff.ui.theme.*
 
@@ -204,10 +210,13 @@ fun IpdWardHomeScreen(
     outboxStatus: IpdOutboxSyncStatus = IpdOutboxSyncStatus(0, 0),
     errorMessage: String? = null,
     isLoading: Boolean,
+    beds: List<IpdBed> = emptyList(),
+    bedsLoading: Boolean = false,
     onRefresh: () -> Unit,
     onPatientsClick: () -> Unit,
     onTaskListClick: () -> Unit,
     onPatientClick: (IpdAdmission) -> Unit,
+    onUpdateBedStatus: ((bedId: String, status: String) -> Unit)? = null,
     onNewAdmissionClick: (() -> Unit)? = null,
     onDismissFailedOutbox: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -352,6 +361,274 @@ fun IpdWardHomeScreen(
             } else {
                 items(admissions.take(5), key = { it.id }) { admission ->
                     AdmissionRow(admission = admission, onClick = { onPatientClick(admission) })
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(6.dp))
+                BedBoardSection(
+                    beds = beds,
+                    bedsLoading = bedsLoading,
+                    onUpdateBedStatus = onUpdateBedStatus
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BedBoardSection(
+    beds: List<IpdBed>,
+    bedsLoading: Boolean,
+    onUpdateBedStatus: ((bedId: String, nextStatus: String) -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    var selectedFilter by remember { mutableStateOf("ALL") }
+
+    val availableCount = remember(beds) { beds.count { it.status.equals("AVAILABLE", ignoreCase = true) } }
+    val occupiedCount = remember(beds) { beds.count { it.status.equals("OCCUPIED", ignoreCase = true) } }
+    val cleaningCount = remember(beds) { beds.count { it.status.equals("CLEANING", ignoreCase = true) } }
+    val maintenanceCount = remember(beds) { beds.count { it.status.equals("MAINTENANCE", ignoreCase = true) } }
+
+    val filteredBeds = remember(beds, selectedFilter) {
+        when (selectedFilter) {
+            "AVAILABLE" -> beds.filter { it.status.equals("AVAILABLE", ignoreCase = true) }
+            "OCCUPIED" -> beds.filter { it.status.equals("OCCUPIED", ignoreCase = true) }
+            "CLEANING" -> beds.filter { it.status.equals("CLEANING", ignoreCase = true) }
+            "MAINTENANCE" -> beds.filter { it.status.equals("MAINTENANCE", ignoreCase = true) }
+            else -> beds
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Hotel, contentDescription = null, tint = Slate700, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Bed Board & Housekeeping",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
+                )
+            }
+            if (cleaningCount > 0) {
+                Surface(color = StatusWarningBg, shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        text = "$cleaningCount needs cleaning",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = StatusWarningText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+
+        // Status Filter Chips Row
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            QuickFilterPill(
+                label = "All (${beds.size})",
+                isSelected = selectedFilter == "ALL",
+                onClick = { selectedFilter = "ALL" }
+            )
+            QuickFilterPill(
+                label = "Available ($availableCount)",
+                isSelected = selectedFilter == "AVAILABLE",
+                onClick = { selectedFilter = "AVAILABLE" }
+            )
+            QuickFilterPill(
+                label = "Cleaning ($cleaningCount)",
+                isSelected = selectedFilter == "CLEANING",
+                onClick = { selectedFilter = "CLEANING" }
+            )
+            QuickFilterPill(
+                label = "Occupied ($occupiedCount)",
+                isSelected = selectedFilter == "OCCUPIED",
+                onClick = { selectedFilter = "OCCUPIED" }
+            )
+            if (maintenanceCount > 0) {
+                QuickFilterPill(
+                    label = "Maint ($maintenanceCount)",
+                    isSelected = selectedFilter == "MAINTENANCE",
+                    onClick = { selectedFilter = "MAINTENANCE" }
+                )
+            }
+        }
+
+        if (bedsLoading && beds.isEmpty()) {
+            Text("Loading bed board…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+        } else if (filteredBeds.isEmpty()) {
+            Surface(
+                color = PureWhite,
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = if (beds.isEmpty()) "No beds configured for this clinic." else "No beds matching filter '$selectedFilter'.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate400
+                    )
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                filteredBeds.forEach { bed ->
+                    BedHousekeepingCard(
+                        bed = bed,
+                        onUpdateStatus = onUpdateBedStatus
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BedHousekeepingCard(
+    bed: IpdBed,
+    onUpdateStatus: ((bedId: String, nextStatus: String) -> Unit)?
+) {
+    val isAvailable = bed.status.equals("AVAILABLE", ignoreCase = true)
+    val isOccupied = bed.status.equals("OCCUPIED", ignoreCase = true)
+    val isCleaning = bed.status.equals("CLEANING", ignoreCase = true)
+    val isMaintenance = bed.status.equals("MAINTENANCE", ignoreCase = true)
+
+    val (statusBg, statusText, statusBorder) = when {
+        isAvailable -> Triple(StatusSuccessBg, StatusSuccessText, StatusSuccessBorder)
+        isOccupied -> Triple(StatusInfoBg, StatusInfoText, StatusInfoBorder)
+        isCleaning -> Triple(StatusWarningBg, StatusWarningText, StatusWarningBorder)
+        isMaintenance -> Triple(StatusErrorBg, StatusErrorText, StatusErrorBorder)
+        else -> Triple(Slate100, Slate700, Slate300)
+    }
+
+    Surface(
+        color = PureWhite,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCleaning) StatusWarningBorder else Slate200),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (isOccupied) Icons.Filled.Hotel else if (isCleaning) Icons.Filled.CleaningServices else Icons.Outlined.Hotel,
+                        contentDescription = null,
+                        tint = statusText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = bed.label,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                        Text(
+                            text = "${bed.room.name} · ${bed.room.ward.name}${bed.dailyRate?.let { " · ₹${it.toInt()}/day" } ?: ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Slate500
+                        )
+                    }
+                }
+
+                Surface(
+                    color = statusBg,
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, statusBorder)
+                ) {
+                    Text(
+                        text = bed.status.replace("_", " "),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = statusText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // Quick Lifecycle Action Buttons
+            if (onUpdateStatus != null) {
+                when {
+                    isCleaning -> {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { onUpdateStatus(bed.id, "AVAILABLE") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = PureWhite)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sanitized & Ready", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PureWhite)
+                            }
+                            OutlinedButton(
+                                onClick = { onUpdateStatus(bed.id, "MAINTENANCE") },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Slate300)
+                            ) {
+                                Text("Maintenance", fontSize = 12.sp, color = Slate700)
+                            }
+                        }
+                    }
+                    isAvailable -> {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { onUpdateStatus(bed.id, "MAINTENANCE") },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Slate300),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(12.dp), tint = Slate600)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Mark Maintenance", fontSize = 11.sp, color = Slate600)
+                            }
+                        }
+                    }
+                    isMaintenance -> {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { onUpdateStatus(bed.id, "AVAILABLE") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = PureWhite)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Fixed & Ready", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PureWhite)
+                            }
+                        }
+                    }
                 }
             }
         }

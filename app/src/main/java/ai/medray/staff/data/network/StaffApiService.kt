@@ -232,6 +232,10 @@ data class IpdBed(
     val room: RoomSummary
 )
 
+data class UpdateBedStatusRequest(
+    val status: String
+)
+
 data class CreateIpdAdmissionRequest(
     val patientId: String,
     val source: String = "OPD",
@@ -595,6 +599,12 @@ interface StaffApiService {
         @Part photo: MultipartBody.Part
     ): Response<Patient>
 
+    @POST("patients/{id}/lab-orders")
+    suspend fun issueLabOrder(
+        @Path("id") id: String,
+        @Body req: LabOrderRequest
+    ): Response<LabOrderResponse>
+
     // Appointments
     @GET("appointments")
     suspend fun listAppointments(
@@ -777,6 +787,13 @@ interface StaffApiService {
         @Query("wardId") wardId: String? = null,
         @Query("clinicId") clinicId: String? = null
     ): Response<List<IpdBed>>
+
+    @PATCH("ipd/beds/{id}/status")
+    suspend fun updateBedStatus(
+        @Path("id") id: String,
+        @Body req: UpdateBedStatusRequest,
+        @Header("X-Clinic-ID") clinicId: String? = null
+    ): Response<IpdBed>
 
     @GET("ipd/nursing/vitals")
     suspend fun listIpdVitals(

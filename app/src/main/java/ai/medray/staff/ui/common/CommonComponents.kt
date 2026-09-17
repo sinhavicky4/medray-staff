@@ -1375,7 +1375,7 @@ fun InvoiceDetailDialog(
                                         if (invoice.discountAmount > 0) {
                                             InvoiceSummaryRow("Discount", "-₹${String.format(Locale.ROOT, "%.2f", invoice.discountAmount)}", valueColor = Color(0xFFDC2626))
                                         }
-                                        InvoiceSummaryRow("GST (CGST 0% + SGST 0%)", "₹0.00 (Exempt)", valueColor = Slate500)
+                                        InvoiceSummaryRow("GST (CGST 0% + SGST 0%)", "₹0.00 (Healthcare Exempt)", valueColor = Slate500)
                                         HorizontalDivider(color = Slate200, modifier = Modifier.padding(vertical = 2.dp))
                                         InvoiceSummaryRow("Net Payable", "₹${String.format(Locale.ROOT, "%.2f", invoice.total)}", isBold = true, fontSize = 13.sp)
                                         InvoiceSummaryRow("Total Paid", "₹${String.format(Locale.ROOT, "%.2f", invoice.netPaid)}", valueColor = Color(0xFF16A34A), isBold = true)

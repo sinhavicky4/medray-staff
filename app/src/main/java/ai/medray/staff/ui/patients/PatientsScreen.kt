@@ -37,11 +37,13 @@ import ai.medray.staff.data.model.formatIsoDateTimeLocal
 import ai.medray.staff.ui.common.MedRayPullRefreshBox
 import ai.medray.staff.ui.common.QuickFilterPill
 import ai.medray.staff.ui.common.StatCard
+import ai.medray.staff.data.model.Invoice
+import ai.medray.staff.data.model.InvoiceStatus
 import ai.medray.staff.data.network.IpdAdmission
 import ai.medray.staff.data.network.AdmissionStatus
 import ai.medray.staff.ui.theme.*
 
-private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS, DOCUMENTS, ADMISSIONS }
+private enum class PatientDetailTab { OVERVIEW, VISITS, PRESCRIPTIONS, DOCUMENTS, ADMISSIONS, INVOICES }
 
 private enum class PatientGenderFilter { ALL, MALE, FEMALE, SENIORS }
 
@@ -496,13 +498,18 @@ fun PatientDetailsDialog(
     documentsLoading: Boolean = false,
     admissions: List<IpdAdmission> = emptyList(),
     admissionsLoading: Boolean = false,
+    invoices: List<Invoice> = emptyList(),
+    invoicesLoading: Boolean = false,
     onDismiss: () -> Unit,
     onAddToQueueClick: () -> Unit = {},
     onBookAppointmentClick: () -> Unit = {},
+    onOrderLabTestClick: () -> Unit = {},
     onUploadDocumentClick: () -> Unit = {},
     onDeleteDocumentClick: (PatientDocument) -> Unit = {},
     onViewDocumentClick: (PatientDocument) -> Unit = {},
-    onOpenIpdAdmission: (String) -> Unit = {}
+    onOpenIpdAdmission: (String) -> Unit = {},
+    onCollectPaymentClick: (Invoice) -> Unit = {},
+    onViewInvoiceClick: (Invoice) -> Unit = {}
 ) {
     val initials = remember(patient.fullName) {
         val names = patient.fullName.trim().split(" ")
@@ -585,6 +592,7 @@ fun PatientDetailsDialog(
                     QuickFilterPill(label = "Prescriptions (${prescriptions.size})", isSelected = tab == PatientDetailTab.PRESCRIPTIONS, onClick = { tab = PatientDetailTab.PRESCRIPTIONS })
                     QuickFilterPill(label = "Documents (${documents.size})", isSelected = tab == PatientDetailTab.DOCUMENTS, onClick = { tab = PatientDetailTab.DOCUMENTS })
                     QuickFilterPill(label = "Inpatient Stays (${admissions.size})", isSelected = tab == PatientDetailTab.ADMISSIONS, onClick = { tab = PatientDetailTab.ADMISSIONS })
+                    QuickFilterPill(label = "Invoices (${invoices.size})", isSelected = tab == PatientDetailTab.INVOICES, onClick = { tab = PatientDetailTab.INVOICES })
                 }
 
                 HorizontalDivider(color = Slate100, modifier = Modifier.padding(vertical = 12.dp))
@@ -736,42 +744,85 @@ fun PatientDetailsDialog(
                                 }
                             }
                         }
+
+                        PatientDetailTab.INVOICES -> {
+                            if (invoicesLoading) {
+                                Text("Loading invoices…", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                            } else if (invoices.isEmpty()) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Outlined.ReceiptLong, contentDescription = null, tint = Slate300, modifier = Modifier.size(36.dp))
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text("No invoices on record for this patient.", style = MaterialTheme.typography.bodySmall, color = Slate400)
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    invoices.forEach { inv ->
+                                        PatientInvoiceCard(
+                                            invoice = inv,
+                                            onCollectPaymentClick = { onCollectPaymentClick(inv) },
+                                            onViewInvoiceClick = { onViewInvoiceClick(inv) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(0.9f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(0.8f)
                     ) {
-                        Text("Close")
+                        Text("Close", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onOrderLabTestClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MedRayTealDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MedRayTealBorder),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.15f)
+                    ) {
+                        Icon(Icons.Outlined.Biotech, contentDescription = null, modifier = Modifier.size(15.dp), tint = MedRayTealDark)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Order Lab", color = MedRayTealDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
 
                     OutlinedButton(
                         onClick = onBookAppointmentClick,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.1f)
                     ) {
-                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = MedRayBluePrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Book Appt", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(15.dp), tint = MedRayBluePrimary)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Appt", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     }
 
                     Button(
                         onClick = onAddToQueueClick,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.1f)
                     ) {
-                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Queue", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Queue", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
@@ -855,6 +906,19 @@ private fun PrescriptionSummaryCard(rx: Prescription, visit: Visit) {
                         color = Slate700
                     )
                 }
+            }
+            if (rx.investigations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Advised Investigations (LOINC):", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MedRayTealDark)
+                rx.investigations.forEach { inv ->
+                    Text(
+                        text = "🔬 ${inv.displayName}${if (!inv.code.isNullOrBlank()) " (LOINC: ${inv.code})" else ""}${if (!inv.specimen.isNullOrBlank()) " · ${inv.specimen}" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate700
+                    )
+                }
+            } else if (!rx.testsAdvised.isNullOrBlank()) {
+                Text("Tests: ${rx.testsAdvised}", style = MaterialTheme.typography.bodySmall, color = Slate600, modifier = Modifier.padding(top = 4.dp))
             }
             if (!rx.adviceNotes.isNullOrBlank()) {
                 Text("Advice: ${rx.adviceNotes}", style = MaterialTheme.typography.bodySmall, color = Slate600, modifier = Modifier.padding(top = 4.dp))
@@ -1159,6 +1223,135 @@ private fun IpdAdmissionSummaryCard(
                         if (!admission.provisionalDiagnosis.isNullOrBlank()) {
                             Text("Diagnosis: ${admission.provisionalDiagnosis}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Slate900)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatientInvoiceCard(
+    invoice: Invoice,
+    onCollectPaymentClick: () -> Unit,
+    onViewInvoiceClick: () -> Unit
+) {
+    val isPaid = invoice.status == InvoiceStatus.PAID
+    val isPartial = invoice.status == InvoiceStatus.PARTIALLY_PAID
+    val isCancelled = invoice.status == InvoiceStatus.CANCELLED
+
+    val statusBg = when {
+        isPaid -> Color(0xFFDCFCE7)
+        isPartial -> Color(0xFFFEF3C7)
+        isCancelled -> Color(0xFFFEE2E2)
+        else -> Color(0xFFEFF6FF)
+    }
+    val statusText = when {
+        isPaid -> Color(0xFF16A34A)
+        isPartial -> Color(0xFFD97706)
+        isCancelled -> Color(0xFFDC2626)
+        else -> Color(0xFF2563EB)
+    }
+
+    Surface(
+        color = Slate50,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onViewInvoiceClick)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "INV-${invoice.invoiceNumber}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MedRayBluePrimary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "· ${formatDateDisplay(invoice.createdAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate500
+                    )
+                }
+                Surface(color = statusBg, shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        text = invoice.status.name.replace("_", " "),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = statusText,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            if (invoice.lineItems.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = invoice.lineItems.joinToString(", ") { "${it.description} (₹${it.amount.toInt()})" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Slate700,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Total: ₹${invoice.total.toInt()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "Paid: ₹${invoice.netPaid.toInt()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF16A34A)
+                    )
+                    if (invoice.balanceDue > 0) {
+                        Text(
+                            text = "Due: ₹${invoice.balanceDue.toInt()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFDC2626)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "GST (0%): ₹0.00 (Healthcare Exempt)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate500
+                )
+            }
+
+            if (invoice.balanceDue > 0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = onCollectPaymentClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Icon(Icons.Filled.QrCode, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Pay", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
