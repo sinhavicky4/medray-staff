@@ -51,7 +51,7 @@ fun MedRayDrawerContent(
 ) {
     // IPD — visible when Clinic.ipdEnabled is active, accessible to Nurses,
     // Receptionists, and Clinic Admins (who can admit patients directly from mobile).
-    val canAccessIpd = (user?.isNurse == true || user?.isReceptionist == true || user?.isClinicAdmin == true) && ipdFeatureEnabled
+    val canAccessIpd = (user?.isNurse == true || user?.isReceptionist == true || user?.isClinicAdmin == true)
 
     val items = listOfNotNull(
         DrawerMenuItem(

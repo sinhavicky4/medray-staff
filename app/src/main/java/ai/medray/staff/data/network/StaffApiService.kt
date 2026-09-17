@@ -595,6 +595,12 @@ interface StaffApiService {
         @Part photo: MultipartBody.Part
     ): Response<Patient>
 
+    @POST("patients/{id}/lab-orders")
+    suspend fun issueLabOrder(
+        @Path("id") id: String,
+        @Body req: LabOrderRequest
+    ): Response<LabOrderResponse>
+
     // Appointments
     @GET("appointments")
     suspend fun listAppointments(

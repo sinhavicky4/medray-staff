@@ -499,6 +499,7 @@ fun PatientDetailsDialog(
     onDismiss: () -> Unit,
     onAddToQueueClick: () -> Unit = {},
     onBookAppointmentClick: () -> Unit = {},
+    onOrderLabTestClick: () -> Unit = {},
     onUploadDocumentClick: () -> Unit = {},
     onDeleteDocumentClick: (PatientDocument) -> Unit = {},
     onViewDocumentClick: (PatientDocument) -> Unit = {},
@@ -742,36 +743,52 @@ fun PatientDetailsDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(0.9f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(0.8f)
                     ) {
-                        Text("Close")
+                        Text("Close", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = onOrderLabTestClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MedRayTealDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MedRayTealBorder),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.15f)
+                    ) {
+                        Icon(Icons.Outlined.Biotech, contentDescription = null, modifier = Modifier.size(15.dp), tint = MedRayTealDark)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Order Lab", color = MedRayTealDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
 
                     OutlinedButton(
                         onClick = onBookAppointmentClick,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.1f)
                     ) {
-                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = MedRayBluePrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Book Appt", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(15.dp), tint = MedRayBluePrimary)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Appt", color = MedRayBluePrimary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     }
 
                     Button(
                         onClick = onAddToQueueClick,
                         colors = ButtonDefaults.buttonColors(containerColor = MedRayBluePrimary),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.1f)
                     ) {
-                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Queue", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Queue", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
@@ -855,6 +872,19 @@ private fun PrescriptionSummaryCard(rx: Prescription, visit: Visit) {
                         color = Slate700
                     )
                 }
+            }
+            if (rx.investigations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Advised Investigations (LOINC):", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MedRayTealDark)
+                rx.investigations.forEach { inv ->
+                    Text(
+                        text = "🔬 ${inv.displayName}${if (!inv.code.isNullOrBlank()) " (LOINC: ${inv.code})" else ""}${if (!inv.specimen.isNullOrBlank()) " · ${inv.specimen}" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate700
+                    )
+                }
+            } else if (!rx.testsAdvised.isNullOrBlank()) {
+                Text("Tests: ${rx.testsAdvised}", style = MaterialTheme.typography.bodySmall, color = Slate600, modifier = Modifier.padding(top = 4.dp))
             }
             if (!rx.adviceNotes.isNullOrBlank()) {
                 Text("Advice: ${rx.adviceNotes}", style = MaterialTheme.typography.bodySmall, color = Slate600, modifier = Modifier.padding(top = 4.dp))

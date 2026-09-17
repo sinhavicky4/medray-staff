@@ -54,6 +54,7 @@ import ai.medray.staff.ui.nurse.FastVitalsEntryDialog
 import ai.medray.staff.ui.nurse.NurseHomeScreen
 import ai.medray.staff.ui.patients.PatientsScreen
 import ai.medray.staff.ui.patients.PatientDetailsDialog
+import ai.medray.staff.ui.patients.OrderLabTestDialog
 import ai.medray.staff.ui.profile.ProfileScreen
 import ai.medray.staff.ui.reception.AddToQueueForPatientDialog
 import ai.medray.staff.ui.reception.ReceptionHomeScreen
@@ -558,6 +559,12 @@ fun StaffAppNavHost(
                 // backend only seeds rows at that point (spec §17's checklist),
                 // same "nothing to show yet" shape as every other empty section.
                 val checklistDeferred = async { loadSection("Discharge Checklist") { ipdRepo.listDischargeChecklist(admissionId) } }
+                val invoiceDeferred = async {
+                    val patientId = admissionRes.getOrNull()?.patientId
+                    if (patientId != null) {
+                        ipdRepo.getAdmissionInvoice(patientId, admissionId).getOrNull()
+                    } else null
+                }
                 ipdChart = IpdChartData(
                     admission = admissionRes.getOrNull(),
                     vitals = vitalsDeferred.await(),
@@ -567,6 +574,7 @@ fun StaffAppNavHost(
                     investigations = investigationsDeferred.await(),
                     timeline = timelineDeferred.await(),
                     dischargeChecklist = checklistDeferred.await(),
+                    invoice = invoiceDeferred.await(),
                     isLoading = false,
                     failedSections = failed.toSet(),
                 )
@@ -609,6 +617,10 @@ fun StaffAppNavHost(
     var uploadDocInitialKind by remember { mutableStateOf("REPORT") }
     var uploadDocBusy by remember { mutableStateOf(false) }
     var uploadDocError by remember { mutableStateOf<String?>(null) }
+    var showOrderLabTestDialog by remember { mutableStateOf(false) }
+    var orderLabTargetPatient by remember { mutableStateOf<Patient?>(null) }
+    var orderLabTestSubmitting by remember { mutableStateOf(false) }
+    var orderLabTestError by remember { mutableStateOf<String?>(null) }
 
     // Chat Assistant state — hydrated from the server-persisted thread the
     // first time Screen.Chat is visited each session (same pattern as web's
@@ -1510,6 +1522,20 @@ fun StaffAppNavHost(
                             onTransferBedClick = {
                                 showBedTransferDialog = true
                                 coroutineScope.launch { loadAvailableBeds() }
+                            },
+                            onCollectInpatientPayment = { invoice ->
+                                val configuredUpiId = currentUser?.clinic?.upiId?.ifBlank { null } ?: currentUser?.clinic?.upiVpa?.ifBlank { null }
+                                if (configuredUpiId == null) {
+                                    Toast.makeText(context, "This clinic hasn't set up a UPI ID yet. Ask your Clinic Admin to add one in Clinic Settings on the web portal.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    upiModalData = UpiPaymentModalData(
+                                        payeeVpa = configuredUpiId,
+                                        payeeName = currentUser?.clinic?.name ?: "MedRay AI Clinic",
+                                        amount = invoice.balanceDue,
+                                        invoiceNumber = invoice.invoiceNumber,
+                                        invoiceId = invoice.id
+                                    )
+                                }
                             }
                         )
                     }
@@ -1930,6 +1956,9 @@ fun StaffAppNavHost(
                                 upiModalData = null
                                 if (paymentRes.isSuccess) {
                                     refreshAllData()
+                                    ipdChartTargetAdmissionId?.let { admId ->
+                                        loadIpdChartData(admId)
+                                    }
                                     Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
                                 } else {
                                     Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
@@ -2068,6 +2097,11 @@ fun StaffAppNavHost(
                 preselectedPatientForAppointment = patient
                 showBookAppointmentDialog = true
             },
+            onOrderLabTestClick = {
+                orderLabTargetPatient = patient
+                orderLabTestError = null
+                showOrderLabTestDialog = true
+            },
             onUploadDocumentClick = {
                 uploadDocTargetPatient = patient
                 uploadDocTargetVisitId = null
@@ -2093,10 +2127,46 @@ fun StaffAppNavHost(
                     val res = patientRepo.deleteDocument(doc.id)
                     if (res.isSuccess) {
                         patientDetailDocuments = patientDetailDocuments.filter { it.id != doc.id }
-                        Toast.makeText(context, "Document deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Document removed", Toast.LENGTH_SHORT).show()
                     } else {
                         val err = res.exceptionOrNull()?.message ?: "Failed to delete document"
                         Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showOrderLabTestDialog && orderLabTargetPatient != null) {
+        val targetPatient = orderLabTargetPatient!!
+        OrderLabTestDialog(
+            patient = targetPatient,
+            isSubmitting = orderLabTestSubmitting,
+            errorMessage = orderLabTestError,
+            onDismiss = {
+                if (!orderLabTestSubmitting) {
+                    showOrderLabTestDialog = false
+                    orderLabTestError = null
+                }
+            },
+            onSearchInvestigations = { query ->
+                patientRepo.searchInvestigations(query).getOrDefault(emptyList())
+            },
+            onSubmitOrder = { req ->
+                orderLabTestSubmitting = true
+                orderLabTestError = null
+                coroutineScope.launch {
+                    val res = patientRepo.issueLabOrder(targetPatient.id, req)
+                    orderLabTestSubmitting = false
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "Diagnostic Lab Order Requisition Generated!", Toast.LENGTH_SHORT).show()
+                        showOrderLabTestDialog = false
+                        val docsRes = patientRepo.listDocuments(targetPatient.id)
+                        if (docsRes.isSuccess) {
+                            patientDetailDocuments = docsRes.getOrDefault(emptyList())
+                        }
+                    } else {
+                        orderLabTestError = res.exceptionOrNull()?.message ?: "Failed to issue lab order"
                     }
                 }
             }
