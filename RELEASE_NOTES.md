@@ -1,3 +1,8 @@
+# MedRay Staff Version 0.5.6 Release Notes
+
+- **🚫 Cancel/No-Show Advance-Payment Sync**: Reception can now cancel or mark a queue entry no-show directly from the OPD Queue — previously unreachable in the app. Matches the platform's block-and-refund reconciliation: cancelling an entry with an outstanding advance payment now prompts to refund it first, instead of silently orphaning the money the front desk already collected.
+- **💳 Safer Cancel/No-Show Handling**: Routed through a real online-only request (no optimistic write, no offline outbox) so a rejected cancel — e.g. money still owed — surfaces immediately instead of being silently retried.
+
 # MedRay Staff Version 0.5.5 Release Notes
 
 - **📱 Landscape / Horizontal Screen Orientation Support**: Added `orientation|screenSize|screenLayout|smallestScreenSize|density|uiMode` config changes handling to `MainActivity`, cached `currentUser` persistently in `AppPreferences`, and decoupled authentication gatekeeping from transient in-memory state. Resolves navigation chrome (sidebar drawer, top bar, bottom navigation bar) disappearing when the device is rotated horizontally/landscape.
