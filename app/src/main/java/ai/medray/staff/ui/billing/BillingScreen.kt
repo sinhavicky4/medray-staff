@@ -452,6 +452,11 @@ fun InvoiceCard(
                             color = Slate400
                         )
                     }
+                    Text(
+                        text = "GST: ₹0.00 (Exempt)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate400
+                    )
                 }
             }
 

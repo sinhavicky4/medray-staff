@@ -84,6 +84,7 @@ fun IpdPatientChartScreen(
     onFinalizeDischarge: (() -> Unit)? = null,
     onTransferBedClick: (() -> Unit)? = null,
     onCollectInpatientPayment: ((Invoice) -> Unit)? = null,
+    onViewInvoice: ((Invoice) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var section by remember { mutableStateOf(ChartSection.OVERVIEW) }
@@ -197,7 +198,8 @@ fun IpdPatientChartScreen(
                             invoice = chart.invoice,
                             onToggle = onToggleChecklistItem,
                             onFinalize = onFinalizeDischarge,
-                            onCollectPayment = onCollectInpatientPayment
+                            onCollectPayment = onCollectInpatientPayment,
+                            onViewInvoice = onViewInvoice
                         )
                     } else if (admission.dischargedAt != null) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -345,7 +347,8 @@ private fun DischargeChecklistCard(
     invoice: Invoice? = null,
     onToggle: (String, Boolean) -> Unit,
     onFinalize: (() -> Unit)? = null,
-    onCollectPayment: ((Invoice) -> Unit)? = null
+    onCollectPayment: ((Invoice) -> Unit)? = null,
+    onViewInvoice: ((Invoice) -> Unit)? = null
 ) {
     if (items.isEmpty()) return
     val doneCount = items.count { it.completed }
@@ -392,18 +395,35 @@ private fun DischargeChecklistCard(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Slate600
                                 )
+                                Text(
+                                    "GST (CGST 0% + SGST 0%): ₹0.00 (Healthcare Exempt)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Slate500
+                                )
                             }
                         }
-                        if (!isSettled && onCollectPayment != null) {
-                            Button(
-                                onClick = { onCollectPayment(invoice) },
-                                colors = ButtonDefaults.buttonColors(containerColor = MedRayTealDark),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Outlined.Payment, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Collect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (!isSettled && onCollectPayment != null) {
+                                Button(
+                                    onClick = { onCollectPayment(invoice) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MedRayTealDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Payment, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Collect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (onViewInvoice != null) {
+                                OutlinedButton(
+                                    onClick = { onViewInvoice(invoice) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    border = BorderStroke(1.dp, Slate300)
+                                ) {
+                                    Text("View Bill", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                                }
                             }
                         }
                     }

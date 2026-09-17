@@ -1384,6 +1384,34 @@ class IpdRepository(private val context: Context) {
         }
     }
 
+    suspend fun listAllBeds(): Result<List<IpdBed>> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.listIpdBeds(status = null, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to load all beds"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateBedStatus(bedId: String, status: String): Result<IpdBed> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val res = api.updateBedStatus(id = bedId, req = UpdateBedStatusRequest(status = status), clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                Result.success(res.body()!!)
+            } else {
+                Result.failure(Exception(res.errorBody()?.string() ?: "Failed to update bed status"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun createAdmission(req: CreateIpdAdmissionRequest): Result<IpdAdmission> = withContext(Dispatchers.IO) {
         val clinicId = cookieJar.getActiveClinicId()
         try {
