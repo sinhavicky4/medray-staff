@@ -289,6 +289,16 @@ class StaffManagementRepository(private val context: Context) {
     }
 }
 
+// Thrown (wrapped in Result.failure) when PATCH queue/{id}/status 409s
+// because the patient has an advance payment that isn't billed or refunded
+// yet — carries the amount through so the caller can offer
+// QueueRepository.refundAdvancePayment() as the retry path, without
+// re-parsing the error body itself.
+data class UnreconciledAdvancePaymentException(
+    val amount: Double,
+    override val message: String
+) : Exception(message)
+
 class QueueRepository(private val context: Context) {
     private val api = ApiClient.getService(context)
     private val db = StaffDatabase.getDatabase(context)
@@ -432,6 +442,44 @@ class QueueRepository(private val context: Context) {
         val clinicId = cookieJar.getActiveClinicId()
         val req = UpdateQueueStatusRequest(status = status, cancelReason = cancelReason)
 
+        // CANCELLED/NO_SHOW are terminal and can be permanently rejected —
+        // the server 409s when the patient still has an advance payment
+        // that isn't billed or refunded yet, and no amount of retrying
+        // through the outbox will ever change that. Unlike every other
+        // status below, this must be a real online-only confirm/fail, same
+        // reasoning as collectAdvancePayment's own doc comment — the old
+        // optimistic-write + outbox-retry-forever path here used to leave
+        // the local UI showing Cancelled forever while the server never
+        // actually cancelled it.
+        if (status == QueueStatus.CANCELLED || status == QueueStatus.NO_SHOW) {
+            return@withContext try {
+                val res = api.updateQueueStatus(id = queueEntryId, req = req, clinicId = clinicId)
+                if (res.isSuccessful && res.body() != null) {
+                    db.queueDao().insertQueueEntry(QueueEntryEntity.fromDomain(res.body()!!))
+                    Result.success(Unit)
+                } else if (res.code() == 409) {
+                    val err = res.errorBody()?.string()
+                    val json = try { org.json.JSONObject(err ?: "") } catch (_: Exception) { null }
+                    val amount = json?.optDouble("unreconciledAmount", -1.0) ?: -1.0
+                    if (amount >= 0) {
+                        Result.failure(UnreconciledAdvancePaymentException(amount, json?.optString("error") ?: "This visit has an unbilled advance payment."))
+                    } else {
+                        Result.failure(Exception(json?.optString("error") ?: "This visit can't be changed."))
+                    }
+                } else {
+                    val err = res.errorBody()?.string()
+                    val message = try {
+                        org.json.JSONObject(err ?: "").optString("error", "Failed to update status")
+                    } catch (_: Exception) {
+                        err ?: "Failed to update status"
+                    }
+                    Result.failure(Exception(message))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
         val existing = db.queueDao().getQueueEntryById(queueEntryId)
         if (existing != null) {
             db.queueDao().insertQueueEntry(existing.copy(status = status.name, cancelReason = cancelReason))
@@ -478,6 +526,36 @@ class QueueRepository(private val context: Context) {
                 Result.success(entry)
             } else {
                 Result.failure(Exception("Failed to record payment"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // The only way to unblock cancelling/no-showing a queue entry that has
+    // an unreconciled advance payment — see updateStatus's 409 handling
+    // above. Always refunds the full outstanding balance. Same online-only
+    // pattern as collectAdvancePayment — money changed hands, no outbox.
+    suspend fun refundAdvancePayment(
+        queueEntryId: String,
+        note: String? = null
+    ): Result<QueueEntry> = withContext(Dispatchers.IO) {
+        val clinicId = cookieJar.getActiveClinicId()
+        try {
+            val req = RefundAdvancePaymentRequest(note = note)
+            val res = api.refundAdvancePayment(id = queueEntryId, req = req, clinicId = clinicId)
+            if (res.isSuccessful && res.body() != null) {
+                val entry = res.body()!!
+                db.queueDao().insertQueueEntry(QueueEntryEntity.fromDomain(entry))
+                Result.success(entry)
+            } else {
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to refund payment")
+                } catch (_: Exception) {
+                    err ?: "Failed to refund payment"
+                }
+                Result.failure(Exception(message))
             }
         } catch (e: Exception) {
             Result.failure(e)

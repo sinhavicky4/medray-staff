@@ -58,6 +58,7 @@ fun ReceptionHomeScreen(
     onStatusChange: (QueueEntry, QueueStatus) -> Unit,
     onCollectPaymentClick: (QueueEntry) -> Unit,
     onWhatsAppClick: (QueueEntry) -> Unit,
+    onCancelClick: (QueueEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -404,7 +405,8 @@ fun ReceptionHomeScreen(
                     onViewPrescriptionClick = { onViewPrescriptionClick(entry) },
                     onStatusChange = { onStatusChange(entry, it) },
                     onCollectPaymentClick = { onCollectPaymentClick(entry) },
-                    onWhatsAppClick = { onWhatsAppClick(entry) }
+                    onWhatsAppClick = { onWhatsAppClick(entry) },
+                    onCancelClick = { onCancelClick(entry) }
                 )
             }
         }
@@ -419,7 +421,8 @@ fun ReceptionPatientCard(
     onViewPrescriptionClick: () -> Unit = {},
     onStatusChange: (QueueStatus) -> Unit,
     onCollectPaymentClick: () -> Unit,
-    onWhatsAppClick: () -> Unit
+    onWhatsAppClick: () -> Unit,
+    onCancelClick: () -> Unit
 ) {
     val patient = entry.patient
     val initials = remember(patient?.fullName) {
@@ -693,9 +696,115 @@ fun ReceptionPatientCard(
                         Icon(Icons.Filled.Check, contentDescription = "Mark Arrived", tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }
                 }
+
+                // Same terminal-state rule the backend itself enforces —
+                // nothing left to cancel once it's already COMPLETED/
+                // CANCELLED/NO_SHOW.
+                if (entry.status != QueueStatus.COMPLETED && entry.status != QueueStatus.CANCELLED && entry.status != QueueStatus.NO_SHOW) {
+                    IconButton(
+                        onClick = onCancelClick,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .background(Color(0xFFFEE2E2), RoundedCornerShape(10.dp))
+                            .width(36.dp)
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = "Cancel Entry", tint = StatusErrorText, modifier = Modifier.size(18.dp))
+                    }
+                }
             }
         }
     }
+}
+
+private val CANCEL_REASON_PRESETS = listOf(
+    "Patient left the clinic",
+    "Patient rescheduled for another day",
+    "Duplicate queue entry",
+    "Patient unwell / emergency referral",
+    "Other"
+)
+
+/**
+ * Cancel-queue-entry confirmation. When the patient has an unreconciled
+ * advance payment (entry.advancePaidTotal > 0 — money collected at check-in
+ * that hasn't been folded into a bill or refunded yet), cancelling refunds
+ * it in full first — the server otherwise 409s this exact transition, same
+ * rule the web app's own CancelQueueEntryModal enforces.
+ */
+@Composable
+fun CancelQueueEntryDialog(
+    entry: QueueEntry,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (reason: String) -> Unit
+) {
+    var reason by remember { mutableStateOf(CANCEL_REASON_PRESETS[0]) }
+    var customReason by remember { mutableStateOf("") }
+    val hasUnreconciledPayment = entry.advancePaidTotal > 0
+
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text("Cancel Queue Entry", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("Remove ${entry.patient?.fullName ?: "this patient"} from today's queue.")
+                if (hasUnreconciledPayment) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(color = StatusWarningBg, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "₹${entry.advancePaidTotal.toInt()} was already collected from this patient and hasn't been billed yet. " +
+                                "Cancelling will refund it in full — this can't be undone from here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = StatusWarningText,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Select Cancellation Reason", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Column {
+                    CANCEL_REASON_PRESETS.forEach { preset ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            RadioButton(selected = reason == preset, onClick = { reason = preset }, enabled = !busy)
+                            Text(preset, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                if (reason == "Other") {
+                    OutlinedTextField(
+                        value = customReason,
+                        onValueChange = { customReason = it },
+                        label = { Text("Specify reason") },
+                        singleLine = true,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(if (reason == "Other" && customReason.isNotBlank()) customReason.trim() else reason) },
+                enabled = !busy && (reason != "Other" || customReason.isNotBlank()),
+                colors = ButtonDefaults.buttonColors(containerColor = StatusErrorText)
+            ) {
+                Text(
+                    when {
+                        busy -> if (hasUnreconciledPayment) "Refunding & cancelling…" else "Cancelling…"
+                        hasUnreconciledPayment -> "Refund ₹${entry.advancePaidTotal.toInt()} & Cancel"
+                        else -> "Confirm Cancel"
+                    },
+                    color = PureWhite,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, enabled = !busy) {
+                Text("Back")
+            }
+        }
+    )
 }
 
 /**

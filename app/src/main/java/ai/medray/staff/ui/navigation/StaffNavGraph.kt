@@ -56,6 +56,7 @@ import ai.medray.staff.ui.patients.PatientsScreen
 import ai.medray.staff.ui.patients.PatientDetailsDialog
 import ai.medray.staff.ui.profile.ProfileScreen
 import ai.medray.staff.ui.reception.AddToQueueForPatientDialog
+import ai.medray.staff.ui.reception.CancelQueueEntryDialog
 import ai.medray.staff.ui.reception.ReceptionHomeScreen
 import ai.medray.staff.ui.reception.WalkInRegisterDialog
 import ai.medray.staff.ui.selfcheckins.SelfCheckInsScreen
@@ -589,6 +590,8 @@ fun StaffAppNavHost(
     var showAddToQueueDialog by remember { mutableStateOf(false) }
     var upiModalData by remember { mutableStateOf<UpiPaymentModalData?>(null) }
     var upiModalBusy by remember { mutableStateOf(false) }
+    var cancellingEntry by remember { mutableStateOf<QueueEntry?>(null) }
+    var cancelBusy by remember { mutableStateOf(false) }
     var invoiceDetailTarget by remember { mutableStateOf<Invoice?>(null) }
     var invoiceShareBusyChannel by remember { mutableStateOf<String?>(null) }
     var assignSelfCheckInTarget by remember { mutableStateOf<SelfCheckIn?>(null) }
@@ -1283,7 +1286,8 @@ fun StaffAppNavHost(
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
                                 }
-                            }
+                            },
+                            onCancelClick = { entry -> cancellingEntry = entry }
                         )
                     }
                 }
@@ -1959,6 +1963,47 @@ fun StaffAppNavHost(
                         } finally {
                             upiModalBusy = false
                         }
+                    }
+                }
+            }
+        )
+    }
+
+    cancellingEntry?.let { entry ->
+        CancelQueueEntryDialog(
+            entry = entry,
+            busy = cancelBusy,
+            onDismiss = { if (!cancelBusy) cancellingEntry = null },
+            onConfirm = { reason ->
+                cancelBusy = true
+                coroutineScope.launch {
+                    try {
+                        // Money already collected at check-in must be
+                        // refunded before the server will allow the
+                        // cancel — see QueueRepository.updateStatus's own
+                        // 409 handling for CANCELLED/NO_SHOW.
+                        if (entry.advancePaidTotal > 0) {
+                            val refundRes = queueRepo.refundAdvancePayment(entry.id)
+                            if (refundRes.isFailure) {
+                                Toast.makeText(context, refundRes.exceptionOrNull()?.message ?: "Failed to refund the advance payment", Toast.LENGTH_LONG).show()
+                                return@launch
+                            }
+                        }
+                        val statusRes = queueRepo.updateStatus(entry.id, QueueStatus.CANCELLED, reason)
+                        if (statusRes.isSuccess) {
+                            cancellingEntry = null
+                            refreshAllData()
+                            Toast.makeText(context, "Queue entry cancelled", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // Covers the rare race where a second advance
+                            // payment landed between the refund above and
+                            // this call — same UnreconciledAdvancePaymentException
+                            // shape either way. Dialog stays open so they
+                            // can retry rather than losing their place.
+                            Toast.makeText(context, statusRes.exceptionOrNull()?.message ?: "Failed to cancel this queue entry", Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        cancelBusy = false
                     }
                 }
             }
