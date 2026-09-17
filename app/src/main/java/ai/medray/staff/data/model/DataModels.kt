@@ -356,6 +356,7 @@ data class Invoice(
     val clinicId: String,
     val patientId: String,
     val visitId: String? = null,
+    val admissionId: String? = null,
     val status: InvoiceStatus = InvoiceStatus.ISSUED,
     val discountAmount: Double = 0.0,
     val discountReason: String? = null,
@@ -421,6 +422,36 @@ data class SelfCheckIn(
     val patient: Patient? = null
 ) : Serializable
 
+data class LabTestItemInput(
+    val name: String,
+    val code: String? = null,
+    val instructions: String? = null
+) : Serializable
+
+data class LabOrderRequest(
+    val tests: List<LabTestItemInput>,
+    val urgency: String = "ROUTINE",
+    val fastingInstructions: String? = null,
+    val clinicalNotes: String? = null
+) : Serializable
+
+data class LabOrderResponse(
+    val document: PatientDocument,
+    val url: String? = null
+) : Serializable
+
+data class PrescriptionInvestigationItem(
+    val id: String? = null,
+    val conceptId: String? = null,
+    val code: String? = null,
+    val system: String? = null,
+    val displayName: String,
+    val specimen: String? = null,
+    val scale: String? = null,
+    val instructions: String? = null,
+    val sortOrder: Int = 0
+) : Serializable
+
 data class PrescriptionItem(
     val id: String? = null,
     val medicineName: String,
@@ -443,6 +474,7 @@ data class Prescription(
     val diagnosisRef: List<String> = emptyList(),
     val adviceNotes: String? = null,
     val testsAdvised: String? = null,
+    val investigations: List<PrescriptionInvestigationItem> = emptyList(),
     val canvasImageUrl: String? = null,
     val pdfUrl: String? = null,
     val items: List<PrescriptionItem> = emptyList(),
