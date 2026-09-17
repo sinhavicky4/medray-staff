@@ -188,6 +188,13 @@ data class CollectAdvancePaymentRequest(
     val note: String? = null
 )
 
+// The only way to unblock cancelling/no-showing a queue entry that has an
+// unreconciled advance payment — see PATCH queue/{id}/status's own 409.
+// Always refunds the full outstanding balance.
+data class RefundAdvancePaymentRequest(
+    val note: String? = null
+)
+
 // --- IPD (Inpatient Department) — Phase 3 staff app ---
 // Mirrors api/src/routes/ipd*.ts one-for-one. Field names mirror the Prisma
 // model fields, same convention every other model in this file already
@@ -563,6 +570,13 @@ interface StaffApiService {
     suspend fun collectAdvancePayment(
         @Path("id") id: String,
         @Body req: CollectAdvancePaymentRequest,
+        @Query("clinicId") clinicId: String? = null
+    ): Response<QueueEntry>
+
+    @POST("queue/{id}/advance-payment/refund")
+    suspend fun refundAdvancePayment(
+        @Path("id") id: String,
+        @Body req: RefundAdvancePaymentRequest,
         @Query("clinicId") clinicId: String? = null
     ): Response<QueueEntry>
 
