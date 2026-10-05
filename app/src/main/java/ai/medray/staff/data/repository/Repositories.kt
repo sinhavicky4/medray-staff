@@ -525,7 +525,13 @@ class QueueRepository(private val context: Context) {
                 db.queueDao().insertQueueEntry(QueueEntryEntity.fromDomain(entry))
                 Result.success(entry)
             } else {
-                Result.failure(Exception("Failed to record payment"))
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to collect payment")
+                } catch (_: Exception) {
+                    err ?: "Failed to collect payment"
+                }
+                Result.failure(Exception(message))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -828,7 +834,13 @@ class BillingRepository(private val context: Context) {
             if (res.isSuccessful && res.body() != null) {
                 Result.success(res.body()!!)
             } else {
-                Result.failure(Exception("Failed to record payment"))
+                val err = res.errorBody()?.string()
+                val message = try {
+                    org.json.JSONObject(err ?: "").optString("error", "Failed to record payment")
+                } catch (_: Exception) {
+                    err ?: "Failed to record payment"
+                }
+                Result.failure(Exception(message))
             }
         } catch (e: Exception) {
             Result.failure(e)

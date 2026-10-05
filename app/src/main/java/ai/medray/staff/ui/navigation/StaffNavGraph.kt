@@ -1936,16 +1936,11 @@ fun StaffAppNavHost(
                                     refreshAllData()
                                     Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded & added to Billing Ledger!", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Payment collected but failed to save to the ledger — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                                    val err = paymentRes.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
+                                        ?: "Payment failed to save to the ledger — please retry."
+                                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
                                 }
                             } else if (data.queueEntryId != null) {
-                                // Pre-visit fee collection (Queue screen's Collect Payment) —
-                                // no Invoice exists yet at this point; this is folded into a
-                                // real Payment automatically once the visit later completes
-                                // (see completeVisitAndInvoice, api/src/routes/visits.ts).
-                                // Previously this tried to create+pay an invoice with just a
-                                // patientId, which never had a matching backend route and
-                                // always failed silently behind an unconditional success toast.
                                 val paymentRes = queueRepo.collectAdvancePayment(
                                     queueEntryId = data.queueEntryId,
                                     amount = invoiceAmount,
@@ -1957,7 +1952,9 @@ fun StaffAppNavHost(
                                     refreshAllData()
                                     Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded!", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Payment collected but failed to save — please record it manually or retry.", Toast.LENGTH_LONG).show()
+                                    val err = paymentRes.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
+                                        ?: "Payment failed to save — please retry."
+                                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
                                 }
                             }
                         } finally {
