@@ -1949,12 +1949,28 @@ fun StaffAppNavHost(
                                 )
                                 upiModalData = null
                                 if (paymentRes.isSuccess) {
+                                    val returnedEntry = paymentRes.getOrNull()
+                                    queueEntries = queueEntries.map {
+                                        if (it.id == data.queueEntryId) {
+                                            it.copy(advancePaidTotal = returnedEntry?.advancePaidTotal?.takeIf { amt -> amt > 0 } ?: invoiceAmount)
+                                        } else it
+                                    }
                                     refreshAllData()
                                     Toast.makeText(context, "Payment of ₹${invoiceAmount.toInt()} recorded!", Toast.LENGTH_SHORT).show()
                                 } else {
                                     val err = paymentRes.exceptionOrNull()?.message?.takeIf { it.isNotBlank() }
                                         ?: "Payment failed to save — please retry."
-                                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                    if (err.contains("already been collected", ignoreCase = true)) {
+                                        queueEntries = queueEntries.map {
+                                            if (it.id == data.queueEntryId) {
+                                                it.copy(advancePaidTotal = invoiceAmount)
+                                            } else it
+                                        }
+                                        refreshAllData()
+                                        Toast.makeText(context, "Payment was already collected for this patient.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
                         } finally {

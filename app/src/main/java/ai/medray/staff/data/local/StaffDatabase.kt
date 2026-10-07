@@ -12,8 +12,8 @@ import androidx.room.RoomDatabase
         OutboxCommandEntity::class,
         IpdAdmissionEntity::class
     ],
-    // v4: OutboxCommandEntity.failedPermanently (bounded outbox retry).
-    version = 4,
+    // v5: QueueEntryEntity.advancePaidTotal (pre-visit advance payment cache).
+    version = 5,
     exportSchema = false
 )
 abstract class StaffDatabase : RoomDatabase() {

@@ -85,7 +85,8 @@ data class QueueEntryEntity(
     val vitalsRespRate: Int?,
     val vitalsSpo2: Int?,
     val vitalsWeightKg: Double?,
-    val vitalsHeightCm: Double?
+    val vitalsHeightCm: Double?,
+    val advancePaidTotal: Double = 0.0
 ) {
     fun toDomain(): QueueEntry {
         val p = if (patientName != null && patientUhid != null) {
@@ -131,7 +132,8 @@ data class QueueEntryEntity(
             vitalsWeightKg = vitalsWeightKg,
             vitalsHeightCm = vitalsHeightCm,
             patient = p,
-            doctor = d
+            doctor = d,
+            advancePaidTotal = advancePaidTotal
         )
     }
 
@@ -162,7 +164,8 @@ data class QueueEntryEntity(
             vitalsRespRate = q.vitalsRespRate,
             vitalsSpo2 = q.vitalsSpo2,
             vitalsWeightKg = q.vitalsWeightKg,
-            vitalsHeightCm = q.vitalsHeightCm
+            vitalsHeightCm = q.vitalsHeightCm,
+            advancePaidTotal = q.advancePaidTotal
         )
     }
 }
